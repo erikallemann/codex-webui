@@ -18,7 +18,7 @@
  * item.completed / rate_limits.updated / error，实时与回放完全统一。
  */
 
-import type { ResponseItem, Usage, AgentMessageItem, UserMessageItem, ReasoningItem, SessionMeta, RateLimits } from "@/types/api";
+import type { ResponseItem, Usage, AgentMessageItem, UserMessageItem, ReasoningItem, SessionMeta, RateLimits, FileChangeItem, CommandExecutionItem } from "@/types/api";
 import { readRolloutLines } from "./reader";
 import type { RolloutLine, ReplayEvent, EventMsgLine, ResponseItemLine } from "./types";
 import { extractReasoningSummaryText } from "@/lib/utils/format";
@@ -228,6 +228,37 @@ function mapEventMsg(
       break;
     }
 
+    case "patch_apply_end": {
+      // 文件补丁应用完成：codex 通过 custom_tool_call(name=exec) 调用 apply_patch
+      // 后触发此事件。payload.changes 是 {filePath: {type, content}} 映射。
+      // 映射为 file_change items，使 FileChangeCard 能渲染文件创建/编辑超链接。
+      const changes = p.changes as Record<string, { type?: string; content?: string }> | undefined;
+      if (changes) {
+        for (const [filePath, info] of Object.entries(changes)) {
+          const rawChangeType = info?.type;
+          const change: FileChangeItem["change"] =
+            rawChangeType === "add" ? "create" :
+            rawChangeType === "delete" ? "delete" :
+            rawChangeType === "rename" ? "rename" : "edit";
+          // 为 "add" 构造 unified diff patch，使 FileChangeCard 可点击查看 diff
+          let patch: string | undefined;
+          if (rawChangeType === "add" && info?.content) {
+            const lines = info.content.split("\n");
+            patch = `*** Begin Patch\n*** Add File: ${filePath}\n${lines.map((l) => "+" + l).join("\n")}\n*** End Patch`;
+          }
+          const fcItem: FileChangeItem = {
+            id: genId(),
+            type: "file_change",
+            change,
+            path: filePath,
+            patch,
+          };
+          events.push({ type: "item.completed", item: fcItem, timestamp: lineTimestamp });
+        }
+      }
+      break;
+    }
+
     default:
       // 未知 event_msg 类型，跳过
       break;
@@ -328,7 +359,80 @@ function mapResponseItem(
     ctx.addReasoningText(it.text);
   }
 
+  // custom_tool_call：codex 新版的工具调用格式（替代旧的 function_call）。
+  // name=exec + tools.shell_command → 映射为 command_execution（显示 shell 命令）
+  // name=exec + tools.apply_patch   → 跳过（patch_apply_end 事件会产生 file_change）
+  // 其他 name → 跳过
+  if (rawType === "custom_tool_call") {
+    return mapCustomToolCall(item as ResponseItem & { name?: string; input?: string }, genId, lineTimestamp);
+  }
+
+  // custom_tool_call_output：工具调用输出，不单独显示（命令输出需要与命令配对，暂不处理）
+  if (rawType === "custom_tool_call_output") {
+    return null;
+  }
+
   return { type: "item.completed", item, timestamp: lineTimestamp };
+}
+
+/**
+ * 将 custom_tool_call 映射为 command_execution（shell 命令）或跳过。
+ *
+ * codex 新版用 custom_tool_call(name=exec) 替代旧的 function_call。input 字段是
+ * JavaScript 代码字符串，包含 tools.shell_command({command:"..."}) 或 tools.apply_patch。
+ *
+ * - tools.shell_command → 提取 command 参数，映射为 command_execution item
+ * - tools.apply_patch   → 跳过（patch_apply_end 事件会产生 file_change items）
+ * - 其他                → 跳过
+ */
+function mapCustomToolCall(
+  item: ResponseItem & { name?: string; input?: string },
+  genId: () => string,
+  lineTimestamp?: string,
+): ReplayEvent | null {
+  const name = item.name;
+  const input = typeof item.input === "string" ? item.input : "";
+
+  if (name === "exec") {
+    // apply_patch 调用：跳过（patch_apply_end 会产生 file_change）
+    if (input.includes("tools.apply_patch")) {
+      return null;
+    }
+    // shell_command 调用：提取 command 参数
+    const cmd = extractShellCommand(input);
+    if (cmd) {
+      const cmdItem: CommandExecutionItem = {
+        id: item.id || genId(),
+        type: "command_execution",
+        command: [cmd],
+      };
+      return { type: "item.completed", item: cmdItem, timestamp: lineTimestamp };
+    }
+  }
+
+  // 未知 custom_tool_call：跳过
+  return null;
+}
+
+/**
+ * 从 custom_tool_call 的 input 字符串中提取 shell 命令。
+ *
+ * input 格式：const r = await tools.shell_command({command:"ssh 3090 \"...\"",...}); text(r)
+ * 用正则匹配 command:"..." 部分，再用 JSON.parse 反转义 JavaScript 字符串转义。
+ */
+function extractShellCommand(input: string): string | null {
+  const match = input.match(/tools\.shell_command\(\{command:"((?:[^"\\]|\\.)*)"/);
+  if (!match) return null;
+  try {
+    return JSON.parse('"' + match[1] + '"');
+  } catch {
+    // JSON.parse 失败时手动反转义常见转义
+    return match[1]
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\")
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t");
+  }
 }
 
 /**

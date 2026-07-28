@@ -10,6 +10,20 @@ export function formatTokens(n: number): string {
 }
 
 /**
+ * 格式化持续时长（毫秒 → 可读），对齐 codex cli 的 "Xm Ys" 风格。
+ * - < 60s：保留 1 位小数（如 "12.3s"）
+ * - >= 60s：分 + 整秒（如 "2m 1s"）
+ */
+export function formatDuration(ms?: number): string | null {
+  if (!ms || !Number.isFinite(ms) || ms <= 0) return null;
+  const sec = ms / 1000;
+  if (sec < 60) return `${sec.toFixed(1)}s`;
+  const min = Math.floor(sec / 60);
+  const remSec = Math.round(sec % 60);
+  return `${min}m ${remSec}s`;
+}
+
+/**
  * 从 reasoning.summary 数组提取明文文本。
  *
  * codex rollout 中 reasoning.summary 的实际结构是对象数组：

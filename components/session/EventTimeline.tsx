@@ -18,7 +18,7 @@ import type { FileChangeItem, ResponseItem } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
 import { TurnStatusCard } from "@/components/events/TurnStatusCard";
 import { EventCard } from "@/components/events/EventCard";
-import { ResponseBlockCard } from "@/components/events/ResponseBlockCard";
+import { ResponseBlockCard, type TurnMeta } from "@/components/events/ResponseBlockCard";
 import {
   ConversationNav,
   type ConversationAnchor,
@@ -27,16 +27,17 @@ import {
 /**
  * 展示用时间线条目类型（annotated useMemo 产物）。
  *
- * - turn：turn 边界（可折叠触发器）
+ * - turn：running/failed turn 边界（渲染 TurnStatusCard 分隔线）
  * - item：独立条目（user_message / error）
  * - response_block：单轮 codex 回复整体块，包含头像+名字、可折叠过程块、
- *   最终输出。将一轮中所有 agent_message + reasoning + 动作合并为一个块：
- *   processItems = 中间过程（第一次输出 → 最后一次思考过程），finalMessage = 最终输出
+ *   最终输出。completed turn 的元数据（duration/usage）附加到此块，
+ *   由 ResponseBlockCard 渲染「已处理 Xm Ys」折叠头。
+ *   running turn 同样附加 turnMeta，渲染「执行中」始终展开。
  */
 type DisplayEntry =
-  | { kind: "turn"; id: string; status: "running" | "completed" | "failed"; usage?: import("@/types/api").Usage; startedAt?: number; completedAt?: number; durationMs?: number }
+  | { kind: "turn"; id: string; status: "running" | "failed"; startedAt?: number; completedAt?: number; durationMs?: number }
   | { kind: "item"; id: string; item: ResponseItem; timestamp?: string; showHeader: boolean }
-  | { kind: "response_block"; id: string; processItems: ResponseItem[]; finalMessage?: ResponseItem; timestamp?: string };
+  | { kind: "response_block"; id: string; processItems: ResponseItem[]; finalMessage?: ResponseItem; timestamp?: string; turnMeta?: TurnMeta };
 
 /** 中间过程事件类型：这些会被合并到 response_block 的 processItems 中 */
 const INTERMEDIATE_TYPES = new Set([
@@ -66,14 +67,14 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
   const entries = useMemo(() => state.timeline, [state.timeline]);
 
   /**
-   * turn 折叠状态：记录被用户折叠的 turn id（Set）。
-   * 默认展开（Set 为空），用户点击"已处理 Xm Ys"行可折叠该 turn，
-   * 折叠时隐藏该 turn 内的 response_block，
-   * 保留 user_message 与 error。
+   * turn 过程块展开状态：记录被用户展开的 completed turn id（Set）。
+   * 默认折叠（Set 为空），用户点击「已处理 Xm Ys」可展开该 turn 的过程块，
+   * 展开后显示中间 agent_message + reasoning + 动作；finalMessage 始终可见。
+   * running turn 始终展开（实时显示进度），不受此 Set 控制。
    */
-  const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
+  const [expandedTurns, setExpandedTurns] = useState<Set<string>>(new Set());
   const toggleTurn = useCallback((turnId: string) => {
-    setCollapsedTurns((prev) => {
+    setExpandedTurns((prev) => {
       const next = new Set(prev);
       if (next.has(turnId)) next.delete(turnId);
       else next.add(turnId);
@@ -88,15 +89,19 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
    * - processItems：中间过程（第一次输出 → 最后一次思考过程），含中间 agent_message
    * - finalMessage：最后一条 agent_message（最终输出），始终展开显示
    *
-   * 边界事件（user_message / error / turn）会 flush 当前 block。
-   * turn 折叠时跳过该 turn 的 response_block（仅保留 turn 状态行）。
+   * turn 处理：
+   * - completed：不单独渲染 TurnStatusCard，turnMeta 附加到 response_block，
+   *   由 ResponseBlockCard 渲染「已处理 Xm Ys」折叠头（默认折叠）。
+   * - running/failed：渲染 TurnStatusCard 分隔线；running 的 turnMeta 附加到
+   *   response_block（渲染「执行中」始终展开）。
+   *
+   * 边界事件（user_message / error）会 flush 当前 block。
    * function_call / function_call_output 直接跳过。
    * 空 reasoning（无文本且无加密内容）在 flush 时过滤。
    */
   const annotated = useMemo<DisplayEntry[]>(() => {
     const result: DisplayEntry[] = [];
     let groupCounter = 0;
-    let currentTurnCollapsed = false;
 
     // 当前 response_block 累积状态
     let blockStarted = false;
@@ -104,6 +109,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     let blockFinalMessage: ResponseItem | undefined = undefined;
     let blockTimestamp: string | undefined = undefined;
     let blockId: string | undefined = undefined;
+    let blockTurnMeta: TurnMeta | undefined = undefined;
 
     /** 判断 reasoning 是否为空（无文本且无加密内容） */
     const isReasoningEmpty = (item: ResponseItem): boolean => {
@@ -114,7 +120,16 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       return text.length === 0 && !hasEncrypted;
     };
 
-    /** flush 当前 response_block（过滤空 reasoning 后输出） */
+    /**
+     * flush 当前 response_block（过滤空 reasoning 后输出）。
+     *
+     * 注意：不重置 blockTurnMeta。turn 元数据由 turn 条目设置，需要跨越
+     * user_message 边界保留——因为 turn 条目在 user_message 之前到达，
+     * user_message 会触发 flush（空 block 不输出），之后的 codex 回复
+     * （reasoning / agent_message / 动作）通过兜底逻辑开启新 block 时，
+     * 需要继承同一 turn 的 turnMeta 才能正确渲染「已处理 Xm Ys」。
+     * blockTurnMeta 仅在新 turn 条目到达时被覆盖（或 failed 时置 undefined）。
+     */
     const flushBlock = () => {
       if (!blockStarted) return;
       const filtered = blockProcessItems.filter((item) => !isReasoningEmpty(item));
@@ -126,6 +141,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
           processItems: filtered,
           finalMessage: blockFinalMessage,
           timestamp: blockTimestamp,
+          turnMeta: blockTurnMeta,
         });
       }
       blockStarted = false;
@@ -133,28 +149,39 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       blockFinalMessage = undefined;
       blockTimestamp = undefined;
       blockId = undefined;
+      // blockTurnMeta 故意不重置：保留给后续同 turn 的 codex 回复块使用
     };
 
     for (const e of entries) {
-      // turn 边界：flush + 输出 turn 状态行 + 开启新 block
+      // turn 边界：flush + 输出 turn 状态行（仅 running/failed）+ 开启新 block
       if (e.kind === "turn") {
         flushBlock();
-        currentTurnCollapsed =
-          e.status === "completed" && collapsedTurns.has(e.id);
-        result.push({
-          kind: "turn",
-          id: e.id,
-          status: e.status,
-          usage: e.usage,
-          startedAt: e.startedAt,
-          completedAt: e.completedAt,
-          durationMs: e.durationMs,
-        });
-        // 未折叠的 turn 开启新 block；折叠的 turn 不开启（事件被跳过）
-        if (!currentTurnCollapsed) {
-          blockStarted = true;
-          blockId = `rb_${groupCounter++}`;
+        if (e.status === "running" || e.status === "failed") {
+          // running/failed：渲染 TurnStatusCard 分隔线
+          result.push({
+            kind: "turn",
+            id: e.id,
+            status: e.status,
+            startedAt: e.startedAt,
+            completedAt: e.completedAt,
+            durationMs: e.durationMs,
+          });
         }
+        // completed 不单独渲染 turn 行，turnMeta 附加到 response_block
+        // 设置 turnMeta：completed/running 有，failed 无（用兜底内部状态）
+        if (e.status === "completed" || e.status === "running") {
+          blockTurnMeta = {
+            id: e.id,
+            status: e.status,
+            durationMs: e.durationMs,
+            usage: e.usage,
+          };
+        } else {
+          blockTurnMeta = undefined;
+        }
+        // 开启新 block（所有状态都开启，累积后续事件）
+        blockStarted = true;
+        blockId = `rb_${groupCounter++}`;
         continue;
       }
 
@@ -165,15 +192,10 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
         continue;
       }
 
-      // user_message：flush + 独立输出（不受 turn 折叠影响）
+      // user_message：flush + 独立输出
       if (rawType === "user_message") {
         flushBlock();
         result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: false });
-        continue;
-      }
-
-      // turn 折叠时：跳过 agent_message 与中间过程
-      if (currentTurnCollapsed) {
         continue;
       }
 
@@ -206,7 +228,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     flushBlock();
 
     return result;
-  }, [entries, collapsedTurns]);
+  }, [entries]);
 
   /**
    * 用户消息锚点：用于左侧翻页条。
@@ -482,25 +504,26 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
                 }}
               >
                 {entry.kind === "turn" ? (
-                <TurnStatusCard
-                  entry={entry}
-                  expanded={
-                    entry.status === "completed"
-                      ? !collapsedTurns.has(entry.id)
-                      : undefined
-                  }
-                  onToggle={
-                    entry.status === "completed"
-                      ? () => toggleTurn(entry.id)
-                      : undefined
-                  }
-                />
+                <TurnStatusCard entry={entry} />
               ) : entry.kind === "response_block" ? (
                   <ResponseBlockCard
                     processItems={entry.processItems}
                     finalMessage={entry.finalMessage}
                     onOpenDiff={onOpenDiff}
                     timestamp={entry.timestamp}
+                    turnMeta={entry.turnMeta}
+                    expanded={
+                      entry.turnMeta
+                        ? entry.turnMeta.status === "running"
+                          ? true
+                          : expandedTurns.has(entry.turnMeta.id)
+                        : undefined
+                    }
+                    onToggleExpand={
+                      entry.turnMeta && entry.turnMeta.status === "completed"
+                        ? () => toggleTurn(entry.turnMeta!.id)
+                        : undefined
+                    }
                   />
                 ) : (
                   <EventCard

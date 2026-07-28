@@ -6,31 +6,46 @@
  * 结构（对齐 codex cli 的折叠展开风格）：
  * ```
  * [avatar] codex  timestamp
- *   ▶ 思考过程 …          ← 可折叠块（头像名字之下）
+ *   ▶ 已处理 2m 1s · 2 命令 · 1 文件   ← completed turn 的折叠头（默认折叠）
  *     · 中间 agent_message（第一次输出 …）
  *     · 思考文本（reasoning 合并）
  *     · 动作列表（命令 / 文件 / 搜索 / 工具 / 计划）
- *   最终 agent_message      ← 最终输出（始终展开）
+ *   最终 agent_message                  ← 最终输出（始终展开）
  * ```
  *
  * 折叠范围：「codex 第一次输出 → 最后一次思考过程」。
  * processItems 包含中间所有 agent_message + reasoning + 动作；
  * finalMessage 是最后一条 agent_message（最终回答），始终展开显示。
  *
- * 头像+名字固定在顶部，折叠块在其之下，符合「折叠要在 codex 头像名字之下」。
+ * turnMeta 控制折叠头样式：
+ * - completed：显示「已处理 {duration}」，受 expanded/onToggleExpand 控制（默认折叠）
+ * - running：显示「执行中」+ 旋转图标，始终展开（不可折叠）
+ * - 无 turnMeta（兜底）：显示「思考过程/执行动作」，内部状态控制
  */
 
 import { useState, useCallback } from "react";
-import type { FileChangeItem, ResponseItem } from "@/types/api";
-import { Brain, ChevronRight, Wrench, Copy, Check } from "lucide-react";
+import type { FileChangeItem, ResponseItem, Usage } from "@/types/api";
+import { Brain, ChevronRight, Wrench, Copy, Check, Loader2 } from "lucide-react";
 import { EventCard } from "./EventCard";
 import { Markdown } from "./Markdown";
-import { formatItemTime } from "@/lib/utils/format";
+import { formatItemTime, formatDuration, formatTokens } from "@/lib/utils/format";
 import { useToast } from "@/stores/toast";
 // codex 官方 logo：渐变色 SVG。
 // Next.js 15 静态导入 SVG 返回 StaticImageData 对象，取 .src 得到实际资源 URL。
 import codexLogo from "@/logo/codex-color.svg";
 const codexLogoSrc = typeof codexLogo === "string" ? codexLogo : codexLogo.src;
+
+/** turn 元数据：控制折叠头样式与展开行为 */
+export interface TurnMeta {
+  /** turn id（用于关联 expandedTurns 状态） */
+  id: string;
+  /** turn 状态：completed 显示「已处理」，running 显示「执行中」 */
+  status: "completed" | "running";
+  /** turn 持续时长（毫秒，completed 时显示） */
+  durationMs?: number;
+  /** token 用量（completed 时在折叠头右侧弱化显示） */
+  usage?: Usage;
+}
 
 interface Props {
   /** 中间过程事件（中间 agent_message + reasoning + 动作），折叠在其下 */
@@ -40,10 +55,25 @@ interface Props {
   onOpenDiff: (item: FileChangeItem) => void;
   /** 首个事件时间戳（ISO 字符串） */
   timestamp?: string;
+  /** turn 元数据（completed/running turn 提供；无则用兜底内部状态） */
+  turnMeta?: TurnMeta;
+  /** completed turn 的展开状态（受控）；undefined 表示用内部状态 */
+  expanded?: boolean;
+  /** completed turn 的折叠/展开回调 */
+  onToggleExpand?: () => void;
 }
 
-export function ResponseBlockCard({ processItems, finalMessage, onOpenDiff, timestamp }: Props) {
-  const [expanded, setExpanded] = useState(false);
+export function ResponseBlockCard({
+  processItems,
+  finalMessage,
+  onOpenDiff,
+  timestamp,
+  turnMeta,
+  expanded,
+  onToggleExpand,
+}: Props) {
+  // 兜底内部状态（无 turnMeta 时使用，默认折叠）
+  const [internalExpanded, setInternalExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
@@ -89,10 +119,49 @@ export function ResponseBlockCard({ processItems, finalMessage, onOpenDiff, time
       : "";
 
   const actionSummary = summarizeActions(actionItems);
+  const durationStr = formatDuration(turnMeta?.durationMs);
 
-  // 折叠块标签：有思考→「思考过程」，仅动作→「执行动作」，仅中间输出→「中间输出」
-  const label = hasReasoning ? "思考过程" : hasActions ? "执行动作" : "中间输出";
-  const Icon = hasReasoning ? Brain : Wrench;
+  // ---- 折叠头标签与展开状态 ----
+  const isCompletedTurn = turnMeta?.status === "completed";
+  const isRunningTurn = turnMeta?.status === "running";
+
+  // 展开状态：completed 受控 / running 始终展开 / 兜底内部状态
+  const isExpanded = isCompletedTurn
+    ? (expanded ?? false)
+    : isRunningTurn
+      ? true
+      : internalExpanded;
+
+  // 折叠头标签
+  const label = isCompletedTurn
+    ? "已处理"
+    : isRunningTurn
+      ? "执行中"
+      : hasReasoning
+        ? "思考过程"
+        : hasActions
+          ? "执行动作"
+          : "中间输出";
+
+  // 图标：completed/兜底用 Brain/Wrench，running 用 Loader2
+  const Icon = isRunningTurn
+    ? Loader2
+    : hasReasoning || isCompletedTurn
+      ? Brain
+      : Wrench;
+
+  // 可折叠：completed（受控回调）或兜底（内部状态）；running 不可折叠
+  const canToggle = isCompletedTurn
+    ? !!onToggleExpand
+    : isRunningTurn
+      ? false
+      : true;
+
+  const handleToggle = isCompletedTurn
+    ? onToggleExpand
+    : isRunningTurn
+      ? undefined
+      : () => setInternalExpanded((v) => !v);
 
   const finalText = hasFinalMessage && finalMessage!.type === "agent_message"
     ? finalMessage!.text
@@ -124,22 +193,67 @@ export function ResponseBlockCard({ processItems, finalMessage, onOpenDiff, time
         {hasProcess && (
           <div className="my-1 rounded-lg border border-[hsl(var(--overlay)/0.08)] bg-[hsl(var(--surface-2))]">
             {/* 折叠头部 */}
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left group focus-ring rounded-lg"
-            >
-              <ChevronRight
-                className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 transition-transform ${
-                  expanded ? "rotate-90" : ""
-                }`}
-              />
-              <Icon className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70" />
-              <span className="text-xs font-medium text-[hsl(var(--muted-foreground))] group-hover:text-foreground/70 transition-colors">
-                {label}
-              </span>
-              {/* 折叠态预览 */}
-              {!expanded && (
-                <>
+            <div className="flex items-center gap-1 px-3 py-2 rounded-lg">
+              {canToggle ? (
+                <button
+                  onClick={handleToggle}
+                  aria-expanded={isExpanded}
+                  className="flex flex-1 items-center gap-2 text-left group focus-ring rounded -mx-1 px-1 py-0.5 transition-colors hover:bg-[hsl(var(--overlay)/0.04)]"
+                >
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 transition-transform ${
+                      isExpanded ? "rotate-90" : ""
+                    }`}
+                  />
+                  <Icon
+                    className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 ${
+                      isRunningTurn ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))] group-hover:text-foreground/70 transition-colors">
+                    {label}
+                  </span>
+                  {isCompletedTurn && durationStr && (
+                    <span className="font-mono text-xs text-[hsl(var(--muted-foreground))]/80">
+                      {durationStr}
+                    </span>
+                  )}
+                  {/* 折叠态预览 */}
+                  {!isExpanded && (
+                    <>
+                      {previewText && (
+                        <span className="truncate text-xs italic text-[hsl(var(--muted-foreground))]/60 flex-1">
+                          {previewText}
+                        </span>
+                      )}
+                      {actionSummary && (
+                        <span className="shrink-0 text-[10px] text-[hsl(var(--muted-foreground))]/50">
+                          {actionSummary}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="flex flex-1 items-center gap-2">
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 transition-transform ${
+                      isExpanded ? "rotate-90" : ""
+                    }`}
+                  />
+                  <Icon
+                    className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 ${
+                      isRunningTurn ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+                    {label}
+                  </span>
+                  {isCompletedTurn && durationStr && (
+                    <span className="font-mono text-xs text-[hsl(var(--muted-foreground))]/80">
+                      {durationStr}
+                    </span>
+                  )}
                   {previewText && (
                     <span className="truncate text-xs italic text-[hsl(var(--muted-foreground))]/60 flex-1">
                       {previewText}
@@ -150,12 +264,30 @@ export function ResponseBlockCard({ processItems, finalMessage, onOpenDiff, time
                       {actionSummary}
                     </span>
                   )}
-                </>
+                </div>
               )}
-            </button>
+
+              {/* 右侧弱化 token 用量（completed turn） */}
+              {isCompletedTurn && turnMeta?.usage && (
+                <span className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] text-[hsl(var(--muted-foreground))]/50">
+                  <span title="input">↑{formatTokens(turnMeta.usage.input_tokens)}</span>
+                  <span title="output">↓{formatTokens(turnMeta.usage.output_tokens)}</span>
+                  {turnMeta.usage.cached_input_tokens > 0 && (
+                    <span title="cached" className="text-[hsl(var(--primary)/0.6)]">
+                      ⚡{formatTokens(turnMeta.usage.cached_input_tokens)}
+                    </span>
+                  )}
+                  {turnMeta.usage.reasoning_output_tokens > 0 && (
+                    <span title="reasoning" className="text-[hsl(var(--info)/0.6)]">
+                      ◇{formatTokens(turnMeta.usage.reasoning_output_tokens)}
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
 
             {/* 展开内容 */}
-            {expanded && (
+            {isExpanded && (
               <div className="px-3 pb-2 pt-0.5 space-y-2">
                 {/* 中间 agent_message（第一次输出 …） */}
                 {hasIntermediateMessages && (
