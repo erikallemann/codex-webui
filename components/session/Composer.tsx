@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * Composer — 输入框 + 发送/停止按钮 + slash 命令自动补全。
+ * Composer — 输入框 + 发送/停止按钮 + slash 命令/skill 自动补全。
  *
  * - 输入 "/" 作为首字符时弹出 slash 命令补全菜单
+ * - 输入 "@<filter>"（空格或行首后跟 @）时弹出 skill 补全菜单
+ *   特别地，/skills @ 是 codex CLI 的 skill 调用语法
  * - Up/Down 选择，Enter/Tab 确认，Escape 关闭
  * - /clear 等本地命令直接执行，其余作为 prompt 发送给 codex
  * - Enter 发送，Shift+Enter 换行
@@ -15,16 +17,20 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useExecStream } from "@/hooks/useExecStream";
 import { useConfig } from "@/hooks/useConfig";
+import { useSkills } from "@/hooks/useSkills";
 import { useActiveSession } from "@/stores/active-session";
 import { ArrowUp, Square, CornerDownLeft } from "lucide-react";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { SkillMenu } from "./SkillMenu";
 import {
   filterSlashCommands,
   type SlashCommand,
 } from "@/lib/codex/slash-commands";
+import type { SkillInfo } from "@/types/api";
 
 export function Composer() {
   const { prefs } = useConfig();
+  const { skills } = useSkills();
   const { run, abort, isRunning } = useExecStream();
   const { state, dispatch } = useActiveSession();
   const [value, setValue] = useState("");
@@ -33,6 +39,10 @@ export function Composer() {
   // slash 命令菜单状态
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashIndex, setSlashIndex] = useState(0);
+
+  // skill 菜单状态
+  const [skillOpen, setSkillOpen] = useState(false);
+  const [skillIndex, setSkillIndex] = useState(0);
 
   const running = isRunning || state.status === "running";
   const disabled = !prefs?.cwd;
@@ -52,7 +62,32 @@ export function Composer() {
     [slashPrefix],
   );
 
-  // 菜单开关跟随 prefix 与过滤结果
+  /**
+   * skill @ 触发检测：输入末尾的 @<filter>（@ 前需为空格或行首）。
+   *
+   * 匹配场景：
+   * - "/skills @nat" → filter = "nat"
+   * - "使用 @nature-" → filter = "nature-"
+   * - "@" → filter = ""（空过滤，显示全部）
+   *
+   * 不匹配：
+   * - "email@test"（@ 前非空格）
+   * - "/skills @" 后跟空格再输入其他文字（@<filter> 不在末尾）
+   */
+  const skillTrigger = useMemo(() => {
+    const match = value.match(/(?:^|\s)@(\S*)$/);
+    if (!match) return null;
+    return { filter: match[1] };
+  }, [value]);
+
+  const filteredSkills = useMemo(() => {
+    if (!skillTrigger) return [];
+    const filter = skillTrigger.filter.toLowerCase();
+    if (!filter) return skills;
+    return skills.filter((s) => s.name.toLowerCase().includes(filter));
+  }, [skillTrigger, skills]);
+
+  // slash 菜单开关跟随 prefix 与过滤结果
   useEffect(() => {
     if (slashPrefix && filteredCommands.length > 0) {
       setSlashOpen(true);
@@ -62,6 +97,16 @@ export function Composer() {
     // 前缀变化时重置选中项
     setSlashIndex(0);
   }, [slashPrefix, filteredCommands.length]);
+
+  // skill 菜单开关跟随 trigger 与过滤结果
+  useEffect(() => {
+    if (skillTrigger && filteredSkills.length > 0) {
+      setSkillOpen(true);
+    } else {
+      setSkillOpen(false);
+    }
+    setSkillIndex(0);
+  }, [skillTrigger, filteredSkills.length]);
 
   // 自适应高度
   useEffect(() => {
@@ -101,6 +146,24 @@ export function Composer() {
     [dispatch],
   );
 
+  /** 选中某个 skill 后的处理：将末尾的 @<filter> 替换为 @<skill-name> */
+  const handleSkillSelect = useCallback(
+    (skill: SkillInfo) => {
+      setSkillOpen(false);
+      // 替换输入末尾的 @<filter> 为 @<skill-name> （带尾随空格）
+      const newValue = value.replace(/@(\S*)$/, `@${skill.name} `);
+      setValue(newValue);
+      textareaRef.current?.focus();
+      requestAnimationFrame(() => {
+        const el = textareaRef.current;
+        if (el) {
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      });
+    },
+    [value],
+  );
+
   const send = useCallback(() => {
     const prompt = value.trim();
     if (!prompt || running || disabled || !prefs?.cwd) return;
@@ -120,6 +183,37 @@ export function Composer() {
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // skill 菜单打开时优先处理（与 slash 菜单互斥，不会同时打开）
+      if (skillOpen && filteredSkills.length > 0) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSkillIndex((i) => (i + 1) % filteredSkills.length);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSkillIndex(
+            (i) => (i - 1 + filteredSkills.length) % filteredSkills.length,
+          );
+          return;
+        }
+        if (e.key === "Tab") {
+          e.preventDefault();
+          handleSkillSelect(filteredSkills[skillIndex]);
+          return;
+        }
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSkillSelect(filteredSkills[skillIndex]);
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setSkillOpen(false);
+          return;
+        }
+      }
+
       // slash 菜单打开时优先处理导航键
       if (slashOpen && filteredCommands.length > 0) {
         if (e.key === "ArrowDown") {
@@ -134,9 +228,31 @@ export function Composer() {
           );
           return;
         }
-        if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) {
+        if (e.key === "Tab") {
           e.preventDefault();
           handleSlashSelect(filteredCommands[slashIndex]);
+          return;
+        }
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          const trimmed = value.trim();
+          const exactMatch = filteredCommands.find((cmd) => cmd.name === trimmed);
+          if (exactMatch) {
+            if (exactMatch.execute === "local") {
+              // 本地命令（如 /clear）：直接执行
+              handleSlashSelect(exactMatch);
+            } else if (!running && !disabled && prefs?.cwd) {
+              // prompt 命令且当前可发送：直接发送，不再插入空格等待二次回车
+              setSlashOpen(false);
+              send();
+            } else {
+              // 无法发送（运行中/无 cwd）：退回到菜单选择，保留输入供用户后续操作
+              handleSlashSelect(filteredCommands[slashIndex]);
+            }
+          } else {
+            // 部分匹配：从菜单选择（插入命令名 + 空格）
+            handleSlashSelect(filteredCommands[slashIndex]);
+          }
           return;
         }
         if (e.key === "Escape") {
@@ -151,7 +267,21 @@ export function Composer() {
         send();
       }
     },
-    [slashOpen, filteredCommands, slashIndex, handleSlashSelect, send],
+    [
+      skillOpen,
+      filteredSkills,
+      skillIndex,
+      handleSkillSelect,
+      slashOpen,
+      filteredCommands,
+      slashIndex,
+      handleSlashSelect,
+      send,
+      value,
+      running,
+      disabled,
+      prefs,
+    ],
   );
 
   return (
@@ -165,6 +295,16 @@ export function Composer() {
               selectedIndex={slashIndex}
               onSelect={handleSlashSelect}
               onHover={setSlashIndex}
+            />
+          )}
+
+          {/* skill 补全菜单（/skills @ 触发） */}
+          {skillOpen && filteredSkills.length > 0 && (
+            <SkillMenu
+              skills={filteredSkills}
+              selectedIndex={skillIndex}
+              onSelect={handleSkillSelect}
+              onHover={setSkillIndex}
             />
           )}
 
@@ -187,7 +327,7 @@ export function Composer() {
                   ? "Set a working directory to begin…"
                   : resumeId
                     ? "Continue the session…"
-                    : "Ask codex anything…  (输入 / 查看命令)"
+                    : "Ask codex anything…  (输入 / 查看命令，@ 引用 skill)"
               }
               className="flex-1 resize-none bg-transparent text-base text-foreground placeholder:text-[hsl(var(--muted-foreground))] outline-none disabled:cursor-not-allowed"
               style={{ minHeight: "28px", maxHeight: "200px" }}
@@ -223,6 +363,7 @@ export function Composer() {
             send
             <span className="ml-2">⇧↵ newline</span>
             {slashOpen && <span className="ml-2">↑↓ 选 / Tab 确认</span>}
+            {skillOpen && <span className="ml-2">↑↓ 选 / Tab 确认</span>}
           </span>
         </div>
       </div>

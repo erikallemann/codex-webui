@@ -422,3 +422,36 @@ export interface FsListResponse {
   parent: string | null;
   entries: FsEntry[];
 }
+
+// ---------------------------------------------------------------------------
+// Skills（/skills @ 补全）
+// ---------------------------------------------------------------------------
+
+/**
+ * Skill 来源类型：
+ * - "user"：用户安装的 skill（~/.codex/skills/<name>/）
+ * - "system"：系统内置 skill（~/.codex/skills/.system/<name>/）
+ * - "plugin"：插件提供的 skill（~/.codex/plugins/cache/.../skills/<name>/）
+ */
+export type SkillSource = "user" | "system" | "plugin";
+
+/** 单个 skill 元数据（GET /api/skills 返回） */
+export interface SkillInfo {
+  /** skill 名称（来自 SKILL.md frontmatter 的 name 字段） */
+  name: string;
+  /** 简短描述（来自 frontmatter description，可能为空） */
+  description: string;
+  /** 来源类型 */
+  source: SkillSource;
+  /** 插件名（仅 source === "plugin"） */
+  plugin?: string;
+  /** 插件市场名（仅 source === "plugin"） */
+  marketplace?: string;
+  /** skill 目录名（文件系统名，用于显示标签） */
+  dirName: string;
+}
+
+/** GET /api/skills 响应 */
+export interface SkillsResponse {
+  skills: SkillInfo[];
+}
