@@ -169,10 +169,10 @@ export function ResponseBlockCard({
 
   return (
     <div className="timeline-item group relative flex gap-3 py-2 px-2">
-      {/* 头像 */}
-      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[hsl(var(--primary)/0.3)] bg-[hsl(var(--primary)/0.08)]">
+      {/* 头像：无边框无背景，仅 logo 本身 */}
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={codexLogoSrc} alt="codex" className="h-5 w-5" />
+        <img src={codexLogoSrc} alt="codex" className="h-6 w-6" />
       </div>
 
       <div className="flex-1 min-w-0">

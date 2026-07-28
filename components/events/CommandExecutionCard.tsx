@@ -3,7 +3,13 @@
 /**
  * CommandExecutionCard — 命令执行。
  *
- * 显示命令、退出码 badge、stdout/stderr（可折叠）。
+ * 显示命令、退出码 badge、aggregated_output（可折叠）。
+ *
+ * codex exec --json 的 command_execution item 实际结构：
+ * - command: 完整命令行字符串（非数组）
+ * - aggregated_output: 合并的 stdout+stderr（含 ANSI 颜色码）
+ * - exit_code: number | null
+ * - status: "in_progress" | "completed"
  */
 
 import { useState, useCallback } from "react";
@@ -14,19 +20,32 @@ interface Props {
   item: CommandExecutionItem;
 }
 
+/** 剥离 ANSI 颜色/控制码，便于在 <pre> 中纯文本展示 */
+function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+}
+
 export function CommandExecutionCard({ item }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const exitCode = item.exit_code;
+  const exitCode = item.exit_code ?? undefined;
   const success = exitCode === 0;
-  const hasOutput = !!(item.stdout || item.stderr);
+  // 优先使用 aggregated_output，其次 stdout/stderr
+  const rawOutput = item.aggregated_output ?? "";
+  const stdout = item.stdout ?? (rawOutput ? stripAnsi(rawOutput) : "");
+  const stderr = item.stderr ?? "";
+  const hasOutput = !!(stdout || stderr);
+
+  // command 是字符串，直接使用
+  const commandStr = typeof item.command === "string" ? item.command : "";
 
   const copy = useCallback(() => {
-    navigator.clipboard.writeText(item.command.join(" "));
+    navigator.clipboard.writeText(commandStr);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
-  }, [item.command]);
+  }, [commandStr]);
 
   return (
     <div className="timeline-item py-1.5 px-2">
@@ -38,7 +57,7 @@ export function CommandExecutionCard({ item }: Props) {
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0 rounded-md border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] px-2 py-1 font-mono text-xs text-foreground/90 overflow-x-auto">
               <span className="text-[hsl(var(--muted-foreground))]">$</span>{" "}
-              <span className="whitespace-pre">{item.command.join(" ")}</span>
+              <span className="whitespace-pre-wrap break-all">{commandStr}</span>
             </div>
 
             <button
@@ -66,6 +85,12 @@ export function CommandExecutionCard({ item }: Props) {
               </span>
             )}
 
+            {item.status === "in_progress" && (
+              <span className="font-mono text-[10px] text-[hsl(var(--muted-foreground))] animate-pulse">
+                running…
+              </span>
+            )}
+
             {hasOutput && (
               <button
                 onClick={() => setExpanded((v) => !v)}
@@ -88,14 +113,14 @@ export function CommandExecutionCard({ item }: Props) {
           {/* 输出（折叠） */}
           {expanded && hasOutput && (
             <div className="mt-1.5 space-y-1">
-              {item.stdout && (
+              {stdout && (
                 <pre className="overflow-x-auto rounded border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 whitespace-pre-wrap max-h-60 overflow-y-auto">
-                  {item.stdout}
+                  {stdout}
                 </pre>
               )}
-              {item.stderr && (
+              {stderr && (
                 <pre className="overflow-x-auto rounded border border-[hsl(var(--danger)/0.2)] bg-[hsl(var(--danger)/0.05)] p-2 font-mono text-[11px] text-[hsl(var(--danger)/0.9)] whitespace-pre-wrap max-h-60 overflow-y-auto">
-                  {item.stderr}
+                  {stderr}
                 </pre>
               )}
             </div>

@@ -146,6 +146,20 @@ function parseItemCompleted(o: Record<string, unknown>): ItemCompletedEvent | nu
     }
   }
 
+  // command_execution 项归一化：
+  // codex exec --json 实际输出 command 为字符串（完整命令行），但旧版或回放可能为数组。
+  // 统一归一化为字符串，避免前端 item.command.join() 报错。
+  if (it.type === "command_execution") {
+    const cmd = (it as { command?: unknown }).command;
+    if (Array.isArray(cmd)) {
+      (it as Record<string, unknown>).command = cmd.join(" ");
+    } else if (typeof cmd !== "string") {
+      (it as Record<string, unknown>).command = "";
+    }
+    // aggregated_output 优先于 stdout/stderr（codex 实际输出此字段）
+    // 不删除 stdout/stderr，保留兼容性
+  }
+
   return {
     type: "item.completed",
     item: it as unknown as ResponseItem,

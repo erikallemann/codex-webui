@@ -120,19 +120,32 @@ export interface ReasoningItem {
   content?: unknown;
 }
 
-/** 命令执行 item */
+/** 命令执行 item
+ *
+ * codex exec --json 实际输出结构：
+ * - command: 完整命令行字符串（如 '"C:\...\pwsh.exe" -Command ...'），非数组
+ * - aggregated_output: 合并的 stdout+stderr（含 ANSI 颜色码）
+ * - exit_code: 退出码（null 表示仍在执行）
+ * - status: "in_progress" | "completed"
+ * 兼容旧字段：stdout / stderr / cwd / metadata
+ */
 export interface CommandExecutionItem {
   id: string;
   type: "command_execution";
-  command: string[];
+  /** 完整命令行字符串（codex 实际输出为 string，非数组） */
+  command: string;
+  /** 合并输出（stdout+stderr，可能含 ANSI 码） */
+  aggregated_output?: string;
   /** 工作目录 */
   cwd?: string;
-  /** 退出码 */
-  exit_code?: number;
-  /** 标准输出 */
+  /** 退出码（null 表示仍在执行） */
+  exit_code?: number | null;
+  /** 标准输出（兼容旧格式，优先使用 aggregated_output） */
   stdout?: string;
-  /** 标准错误 */
+  /** 标准错误（兼容旧格式） */
   stderr?: string;
+  /** 执行状态 */
+  status?: "in_progress" | "completed";
   /** 是否被用户拒绝 */
   metadata?: { denial_reason?: string };
 }
