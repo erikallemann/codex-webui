@@ -21,6 +21,7 @@ import type {
   Usage,
 } from "@/types/api";
 import { extractReasoningSummaryText } from "@/lib/utils/format";
+import { inferSeverity } from "./severity";
 
 /** 已知的顶层事件 type */
 const KNOWN_EVENT_TYPES = new Set<string>([
@@ -91,12 +92,15 @@ export function parseEventLine(line: string): CodexEvent | null {
         message: typeof o.message === "string" ? o.message : undefined,
       };
 
-    case "error":
+    case "error": {
+      const message = typeof o.message === "string" ? o.message : "unknown error";
       return {
         type: "error",
-        message: typeof o.message === "string" ? o.message : "unknown error",
+        message,
         stderr: typeof o.stderr === "string" ? o.stderr : undefined,
+        severity: inferSeverity(message),
       };
+    }
 
     default:
       return null;
@@ -158,6 +162,13 @@ function parseItemCompleted(o: Record<string, unknown>): ItemCompletedEvent | nu
     }
     // aggregated_output 优先于 stdout/stderr（codex 实际输出此字段）
     // 不删除 stdout/stderr，保留兼容性
+  }
+
+  // error 项：推断 severity，区分致命错误与非致命警告
+  if (it.type === "error") {
+    const msg = (it as { message?: unknown }).message;
+    const messageStr = typeof msg === "string" ? msg : "";
+    (it as Record<string, unknown>).severity = inferSeverity(messageStr);
   }
 
   return {

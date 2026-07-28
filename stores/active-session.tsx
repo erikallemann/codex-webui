@@ -246,7 +246,8 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
       return {
         ...state,
         error: event.message,
-        status: "failed",
+        // 非致命警告（如 skills context budget 截断）不将 session 状态置为 failed
+        status: event.severity === "warning" ? state.status : "failed",
       };
 
     default:

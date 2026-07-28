@@ -210,6 +210,14 @@ export interface ErrorItem {
   id: string;
   type: "error";
   message: string;
+  /**
+   * 严重级别：
+   * - "error"：真正的错误（如 spawn 失败、子进程非 0 退出）
+   * - "warning"：codex CLI 的非致命警告（如 skills context budget 截断提示）
+   *
+   * 警告不应将 session 状态置为 failed，仅以黄色卡片形式在时间线提示。
+   */
+  severity?: "error" | "warning";
 }
 
 /** 所有 item 类型的联合 */
@@ -272,6 +280,8 @@ export interface ErrorEvent {
   message: string;
   /** 附加 stderr（服务端封装） */
   stderr?: string;
+  /** 严重级别：warning 不将 session 状态置为 failed */
+  severity?: "error" | "warning";
 }
 
 /** codex exec --json 原始事件联合 */
