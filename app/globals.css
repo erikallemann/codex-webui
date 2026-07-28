@@ -1,0 +1,256 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+ * 设计 token：开发者/终端启发的精炼美学
+ * 基底 zinc 色阶，强调色 emerald（状态）+ amber（警告）+ rose（错误）
+ * 等宽字体用于命令/diff/thread_id/token 数字
+ * 无渐变、无拟物阴影；边框使用 border-subtle
+ *
+ * 主题：:root = 亮色（默认），.dark = 暗色覆盖
+ * 通过 next-themes 切换 html.class；--overlay 用于 hover/分隔线叠加层
+ * ------------------------------------------------------------------------- */
+
+@layer base {
+  /* 亮色主题（默认） */
+  :root {
+    color-scheme: light;
+
+    /* 正文用系统默认字体（Windows 微软雅黑），代码/公式用等宽字体 */
+    --font-sans: "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", "SF Mono", ui-monospace, monospace;
+
+    /* 亮色基底 */
+    --background: 0 0% 100%; /* white */
+    --surface: 240 5% 98%; /* zinc-50 */
+    --surface-2: 240 5% 96%; /* zinc-100 */
+    --foreground: 240 10% 3.9%; /* zinc-950 */
+    --muted: 240 5% 64%; /* zinc-400 */
+    --muted-foreground: 240 4% 46%; /* zinc-500 */
+    --border: 240 6% 90%; /* zinc-200 */
+    --border-subtle: 240 6% 94%; /* zinc-100 */
+
+    /* 叠加层：亮色用黑（hover/分隔线） */
+    --overlay: 0 0% 0%;
+
+    /* 强调色（亮色背景上加深以保证对比度） */
+    --primary: 152 76% 40%; /* emerald-600 */
+    --primary-foreground: 0 0% 100%;
+    --accent: 38 92% 45%; /* amber-600 */
+    --danger: 347 77% 45%; /* rose-600 */
+    --info: 217 91% 50%; /* blue-600 */
+
+    /* 语法高亮（diff / 代码） */
+    --diff-add-bg: 152 76% 40%;
+    --diff-add-fg: 152 80% 20%;
+    --diff-del-bg: 347 77% 45%;
+    --diff-del-fg: 347 80% 25%;
+    --diff-hunk: 217 91% 50%;
+  }
+
+  /* 暗色主题覆盖 */
+  .dark {
+    color-scheme: dark;
+
+    --background: 240 10% 3.9%; /* zinc-950 */
+    --surface: 240 6% 6%; /* 卡片底 */
+    --surface-2: 240 6% 8%; /* 次级表面 */
+    --foreground: 0 0% 95%;
+    --muted: 240 4% 46%;
+    --muted-foreground: 240 5% 64%;
+    --border: 240 4% 16%;
+    --border-subtle: 240 4% 10%;
+
+    /* 叠加层：暗色用白 */
+    --overlay: 0 0% 100%;
+
+    --primary: 152 76% 50%; /* emerald-400 */
+    --primary-foreground: 240 10% 3.9%;
+    --accent: 38 92% 50%; /* amber-400 */
+    --danger: 347 77% 50%; /* rose-500 */
+    --info: 217 91% 60%; /* blue-500 */
+
+    --diff-add-bg: 152 76% 50%;
+    --diff-add-fg: 152 80% 85%;
+    --diff-del-bg: 347 77% 50%;
+    --diff-del-fg: 347 80% 85%;
+    --diff-hunk: 217 91% 60%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    /* 基础字号 13px → 15px（参考 DeepSeek Chat），rem 单位会随之放大 */
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 滚动条：细窄、半透明 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted));
+  }
+
+  /* 选中文本 */
+  ::selection {
+    background: hsl(var(--primary) / 0.25);
+  }
+}
+
+@layer components {
+  /* 等宽字体工具类 */
+  .font-mono {
+    font-family: var(--font-mono);
+    font-feature-settings: "calt" 0;
+  }
+
+  /* 卡片表面 */
+  .surface {
+    background: hsl(var(--surface));
+    border: 1px solid hsl(var(--border-subtle));
+  }
+
+  /* 焦点环 */
+  .focus-ring {
+    outline: none;
+  }
+  .focus-ring:focus-visible {
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.5);
+  }
+
+  /* 闪烁光标（运行中指示器） */
+  .cursor-blink {
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  /* 淡入动画（新事件） */
+  .animate-fade-in {
+    animation: fade-in 0.15s ease-out;
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* 事件时间线条目 */
+  .timeline-item {
+    animation: fade-in 0.12s ease-out;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * highlight.js 语法高亮：主题适配
+ * rehype-highlight 为代码块添加 .hljs 与 token class，此处用 CSS 变量适配 light/dark
+ * ------------------------------------------------------------------------- */
+@layer utilities {
+  .hljs {
+    color: hsl(var(--foreground));
+    background: transparent;
+  }
+
+  /* 注释 / 引用 */
+  .hljs-comment,
+  .hljs-quote {
+    color: hsl(var(--muted-foreground));
+    font-style: italic;
+  }
+
+  /* 关键字 / 选择器 / 标签 */
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal,
+  .hljs-section,
+  .hljs-doctag,
+  .hljs-name,
+  .hljs-built_in,
+  .hljs-type {
+    color: hsl(var(--accent));
+  }
+
+  /* 字符串 / 属性 / 值 */
+  .hljs-string,
+  .hljs-attr,
+  .hljs-attribute,
+  .hljs-meta-string,
+  .hljs-regexp,
+  .hljs-template-tag,
+  .hljs-template-variable,
+  .hljs-addition {
+    color: hsl(var(--primary));
+  }
+
+  /* 数字 / 常量 / 符号 */
+  .hljs-number,
+  .hljs-symbol,
+  .hljs-bullet,
+  .hljs-link,
+  .hljs-meta,
+  .hljs-selector-id,
+  .hljs-selector-class {
+    color: hsl(var(--info));
+  }
+
+  /* 标题 / 函数名 / 类名 */
+  .hljs-title,
+  .hljs-title.function_,
+  .hljs-title.class_ {
+    color: hsl(var(--info));
+    font-weight: 600;
+  }
+
+  /* 变量 / 属性 */
+  .hljs-variable,
+  .hljs-property,
+  .hljs-params {
+    color: hsl(var(--foreground));
+  }
+
+  /* 删除（diff） */
+  .hljs-deletion {
+    color: hsl(var(--danger));
+  }
+
+  /* 强调 / 提示 */
+  .hljs-emphasis {
+    font-style: italic;
+  }
+  .hljs-strong {
+    font-weight: 700;
+  }
+
+  /* KaTeX 在 light/dark 下的颜色适配 */
+  .katex {
+    color: hsl(var(--foreground));
+  }
+}
