@@ -170,87 +170,211 @@
 }
 
 /* ---------------------------------------------------------------------------
- * highlight.js 语法高亮：主题适配
- * rehype-highlight 为代码块添加 .hljs 与 token class，此处用 CSS 变量适配 light/dark
+ * highlight.js 语法高亮：VSCode Dark+ / Light+ 风格完整配色
+ *
+ * rehype-highlight 为代码块添加 .hljs 与 token class，此处按 VSCode 默认主题
+ * （Dark+ 暗色 / Light+ 亮色）给出完整的 token 级颜色，使代码块呈现与
+ * VSCode 一致的多色语法高亮。
+ *
+ * 注意：不能放在 @layer utilities 内，否则 Tailwind JIT 会因类名未出现在源码中
+ * 而将其 tree-shake 掉（hljs-token 类由 rehype-highlight 在运行时动态添加）。
+ * 放在 layer 外，作为普通 CSS 始终保留，且优先级高于 @layer 内的样式。
  * ------------------------------------------------------------------------- */
-@layer utilities {
-  .hljs {
-    color: hsl(var(--foreground));
-    background: transparent;
-  }
 
-  /* 注释 / 引用 */
-  .hljs-comment,
-  .hljs-quote {
-    color: hsl(var(--muted-foreground));
-    font-style: italic;
-  }
+/* 代码块内的 code 元素：重置 prose-code 的 primary 色，让 hljs token 色生效 */
+.prose pre code {
+  color: hsl(var(--foreground));
+}
 
-  /* 关键字 / 选择器 / 标签 */
-  .hljs-keyword,
-  .hljs-selector-tag,
-  .hljs-literal,
-  .hljs-section,
-  .hljs-doctag,
-  .hljs-name,
-  .hljs-built_in,
-  .hljs-type {
-    color: hsl(var(--accent));
-  }
+/* ---------------------------------------------------------------------------
+ * 暗色主题：VSCode Dark+ 配色
+ * ------------------------------------------------------------------------- */
+.hljs {
+  color: #d4d4d4;
+  background: transparent;
+}
 
-  /* 字符串 / 属性 / 值 */
-  .hljs-string,
-  .hljs-attr,
-  .hljs-attribute,
-  .hljs-meta-string,
-  .hljs-regexp,
-  .hljs-template-tag,
-  .hljs-template-variable,
-  .hljs-addition {
-    color: hsl(var(--primary));
-  }
+/* 注释：绿色斜体 */
+.hljs-comment,
+.hljs-quote {
+  color: #6a9955;
+  font-style: italic;
+}
 
-  /* 数字 / 常量 / 符号 */
-  .hljs-number,
-  .hljs-symbol,
-  .hljs-bullet,
-  .hljs-link,
-  .hljs-meta,
-  .hljs-selector-id,
-  .hljs-selector-class {
-    color: hsl(var(--info));
-  }
+/* 关键字：蓝色（if/for/return/def/class/import 等） */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-doctag {
+  color: #569cd6;
+}
 
-  /* 标题 / 函数名 / 类名 */
-  .hljs-title,
-  .hljs-title.function_,
-  .hljs-title.class_ {
-    color: hsl(var(--info));
-    font-weight: 600;
-  }
+/* 内建类型/常量：蓝色（true/false/null/None/self） */
+.hljs-built_in,
+.hljs-type,
+.hljs-builtin-name {
+  color: #4ec9b0;
+}
 
-  /* 变量 / 属性 */
-  .hljs-variable,
-  .hljs-property,
-  .hljs-params {
-    color: hsl(var(--foreground));
-  }
+/* 字符串：橙红色 */
+.hljs-string,
+.hljs-meta-string,
+.hljs-regexp,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-addition {
+  color: #ce9178;
+}
 
-  /* 删除（diff） */
-  .hljs-deletion {
-    color: hsl(var(--danger));
-  }
+/* 数字：浅绿色 */
+.hljs-number {
+  color: #b5cea8;
+}
 
-  /* 强调 / 提示 */
-  .hljs-emphasis {
-    font-style: italic;
-  }
-  .hljs-strong {
-    font-weight: 700;
-  }
+/* 函数名/方法名：黄色 */
+.hljs-title,
+.hljs-title.function_ {
+  color: #dcdcaa;
+}
 
-  /* KaTeX 在 light/dark 下的颜色适配 */
-  .katex {
-    color: hsl(var(--foreground));
-  }
+/* 类名：青色 */
+.hljs-title.class_ {
+  color: #4ec9b0;
+  font-weight: 600;
+}
+
+/* 变量/属性/参数：浅蓝色 */
+.hljs-variable,
+.hljs-property,
+.hljs-params {
+  color: #9cdcfe;
+}
+
+/* 常量/符号：蓝色 */
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-selector-attr {
+  color: #4fc1ff;
+}
+
+/* HTML/XML 标签：蓝色 */
+.hljs-name,
+.hljs-tag {
+  color: #569cd6;
+}
+
+/* HTML/XML 属性：浅蓝色 */
+.hljs-attr,
+.hljs-attribute {
+  color: #9cdcfe;
+}
+
+/* CSS 属性名：浅蓝色 */
+.hljs-attribute.css .hljs-name,
+.hljs-selector-tag {
+  color: #d7ba7d;
+}
+
+/* diff 删除：红色 */
+.hljs-deletion {
+  color: #f44747;
+}
+
+/* 强调/加粗 */
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+ * 亮色主题：VSCode Light+ 配色
+ * ------------------------------------------------------------------------- */
+:root:not(.dark) .hljs {
+  color: #000000;
+  background: transparent;
+}
+
+:root:not(.dark) .hljs-comment,
+:root:not(.dark) .hljs-quote {
+  color: #008000;
+  font-style: italic;
+}
+
+:root:not(.dark) .hljs-keyword,
+:root:not(.dark) .hljs-selector-tag,
+:root:not(.dark) .hljs-literal,
+:root:not(.dark) .hljs-section,
+:root:not(.dark) .hljs-doctag {
+  color: #0000ff;
+}
+
+:root:not(.dark) .hljs-built_in,
+:root:not(.dark) .hljs-type,
+:root:not(.dark) .hljs-builtin-name {
+  color: #267f99;
+}
+
+:root:not(.dark) .hljs-string,
+:root:not(.dark) .hljs-meta-string,
+:root:not(.dark) .hljs-regexp,
+:root:not(.dark) .hljs-template-tag,
+:root:not(.dark) .hljs-template-variable,
+:root:not(.dark) .hljs-addition {
+  color: #a31515;
+}
+
+:root:not(.dark) .hljs-number {
+  color: #098658;
+}
+
+:root:not(.dark) .hljs-title,
+:root:not(.dark) .hljs-title.function_ {
+  color: #795e26;
+}
+
+:root:not(.dark) .hljs-title.class_ {
+  color: #267f99;
+  font-weight: 600;
+}
+
+:root:not(.dark) .hljs-variable,
+:root:not(.dark) .hljs-property,
+:root:not(.dark) .hljs-params {
+  color: #001080;
+}
+
+:root:not(.dark) .hljs-symbol,
+:root:not(.dark) .hljs-bullet,
+:root:not(.dark) .hljs-link,
+:root:not(.dark) .hljs-meta,
+:root:not(.dark) .hljs-selector-id,
+:root:not(.dark) .hljs-selector-class,
+:root:not(.dark) .hljs-selector-attr {
+  color: #0070c1;
+}
+
+:root:not(.dark) .hljs-name,
+:root:not(.dark) .hljs-tag {
+  color: #800000;
+}
+
+:root:not(.dark) .hljs-attr,
+:root:not(.dark) .hljs-attribute {
+  color: #ff0000;
+}
+
+:root:not(.dark) .hljs-deletion {
+  color: #a31515;
+}
+
+/* KaTeX 在 light/dark 下的颜色适配 */
+.katex {
+  color: hsl(var(--foreground));
 }

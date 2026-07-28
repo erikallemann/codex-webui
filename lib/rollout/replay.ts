@@ -78,6 +78,11 @@ export async function* replayRollout(
         pendingUsage = null;
         pendingStartedAt = undefined;
         // rate_limits 不清除：它代表全局配额状态，持续到下次更新
+        // 去重 Set 按 turn 清空：event_msg/agent_message 与 response_item/message
+        // 只在同一 turn 内描述同一条消息，跨 turn 去重会错误丢弃用户重复输入
+        // （如用户在多个 turn 都说"总结结果"，第二次会被误删）
+        seenMessageKeys.clear();
+        seenReasoningTexts.clear();
       },
       hasReasoningText: (text) => seenReasoningTexts.has(text),
       addReasoningText: (text) => seenReasoningTexts.add(text),
@@ -404,7 +409,7 @@ function mapCustomToolCall(
       const cmdItem: CommandExecutionItem = {
         id: item.id || genId(),
         type: "command_execution",
-        command: [cmd],
+        command: cmd,
       };
       return { type: "item.completed", item: cmdItem, timestamp: lineTimestamp };
     }
