@@ -37,11 +37,64 @@ interface MarkdownProps {
  *
  * 转换规则：
  * 1. \[...\] → $$...$$（display math，非贪婪，跨行）
- * 2. \(...\) → $...$（inline math，非贪婪，同行）
+ * 2. \(...\) → $...$（inline math，同行）
  * 3. 独立的 \begin{env}...\end{env} → 包裹为 $$...$$
+ *
+ * 同时处理代码块语言标记：
+ * - Codex CLI 常用 ```text 标记代码块，但其中可能是 Python/JS 等实际代码
+ * - 对 text/plaintext/plain 标记的代码块，用启发式规则检测实际语言并显式指定
+ * - 检测失败时去除语言标记，由 rehype-highlight 的 detect:true 自动检测
+ * - 保留显式指定的语言（如 ```python、```typescript）
  *
  * 注意：不处理代码块内的内容（``` 或 ~~~ 之间的内容）。
  */
+
+/**
+ * 启发式检测代码块的语言。
+ *
+ * Codex CLI 常用 ```text 标记所有代码块，但其中可能是 Python/JS/Shell 等实际代码。
+ * highlight.js 的 auto-detect 对 `key = value` 格式容易误判为 ini，
+ * 因此在预处理阶段用关键词启发式显式指定语言，提升高亮准确度。
+ *
+ * 检测顺序（按特异性从高到低）：
+ * 1. Python 关键字（def/class/import/from/self/lambda/yield/raise/elif/except）
+ * 2. JS/TS 关键字（const/let/var/function/=>/console/require）
+ * 3. Shell 特征（#!/shebang、cd/mkdir/rm/echo/export/sudo）
+ * 4. JSON（以 { 或 [ 开头且能解析）
+ * 5. Python-like 回退：有 `var = func(` 赋值调用且无分号
+ *
+ * @returns 检测到的 highlight.js 语言名，未检测到返回 null
+ */
+function detectCodeLanguage(code: string): string | null {
+  // Python 关键字（特异性最高）
+  if (/\b(def\s+\w+\s*\(|class\s+\w+\s*[(:]|from\s+\w+\s+import|import\s+\w+|if\s+__name__|self\.|lambda\s+|yield\s+|raise\s+|elif\s+|except\s+\w*|with\s+\w+\s+as\s+|@\w+\s*$)/m.test(code)) {
+    return "python";
+  }
+  // JS/TS 关键字
+  if (/\b(const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=|function\s+\w+\s*\(|=>\s|console\.log|require\s*\(|import\s+\w+\s+from\s+['"])/m.test(code)) {
+    return "typescript";
+  }
+  // Shell 特征
+  if (/^(#!\/|cd\s+\S|mkdir\s|rm\s+-|cp\s|mv\s|echo\s|export\s|sudo\s|pip\s|npm\s|git\s)/m.test(code)) {
+    return "bash";
+  }
+  // JSON：以 { 或 [ 开头且能解析
+  const trimmed = code.trim();
+  if ((trimmed.startsWith("{") || trimmed.startsWith("[")) && (trimmed.endsWith("}") || trimmed.endsWith("]"))) {
+    try {
+      JSON.parse(trimmed);
+      return "json";
+    } catch {
+      // not valid JSON
+    }
+  }
+  // Python-like 回退：有 `var = func(` 赋值调用且无分号（排除 JS）
+  if (/\w+\s*=\s*\w+\s*\(/.test(code) && !code.includes(";")) {
+    return "python";
+  }
+  return null;
+}
+
 function preprocessLatex(text: string | null | undefined): string {
   // 容错：exec 流或 rollout 可能传入 undefined/null
   if (!text || typeof text !== "string") return "";
@@ -53,7 +106,28 @@ function preprocessLatex(text: string | null | undefined): string {
   return parts
     .map((part, idx) => {
       // 偶数索引为非代码部分，奇数索引为代码块
-      if (idx % 2 === 1) return part;
+      if (idx % 2 === 1) {
+        // 代码块语言处理：
+        // 1. 提取围栏标记与语言
+        const fenceMatch = part.match(/^(```|~~~)(\w*)/);
+        if (!fenceMatch) return part;
+        const fence = fenceMatch[1];
+        const lang = fenceMatch[2].toLowerCase();
+
+        // 仅处理 text/plaintext/plain 标记的代码块
+        if (lang === "text" || lang === "plaintext" || lang === "plain" || lang === "") {
+          // 提取代码内容（去掉首行围栏和末尾围栏）
+          const codeContent = part.replace(/^(```|~~~)\w*\n?/, "").replace(/(```|~~~)\s*$/, "");
+          const detected = detectCodeLanguage(codeContent);
+          if (detected) {
+            // 显式指定检测到的语言
+            return part.replace(/^(```|~~~)\w*/, `${fence}${detected}`);
+          }
+          // 未检测到：去除语言标记，由 detect:true 自动检测
+          return part.replace(/^(```|~~~)\w*/, fence);
+        }
+        return part;
+      }
 
       let result = part;
 

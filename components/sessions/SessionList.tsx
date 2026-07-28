@@ -4,6 +4,10 @@
  * SessionList — 历史会话列表。
  *
  * SWR 拉取，点击加载回放。按 cwd（项目）分组展示，组标题显示项目名。
+ *
+ * 项目文件夹交互：
+ * - 悬停时右侧显示「+」新建对话按钮：设置 prefs.cwd 为该项目路径并 RESET 会话
+ * - 右键弹出上下文菜单：新建对话
  */
 
 import { useSessionList } from "@/hooks/useSessionList";
@@ -11,17 +15,27 @@ import { useReplayStream } from "@/hooks/useReplayStream";
 import { useConfig } from "@/hooks/useConfig";
 import { useActiveSession } from "@/stores/active-session";
 import { SessionListItem } from "./SessionListItem";
-import { MessageSquare, RefreshCw, Search, Folder } from "lucide-react";
-import { useState, useMemo } from "react";
+import { MessageSquare, RefreshCw, Search, Folder, Plus } from "lucide-react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { ThreadItem } from "@/types/api";
 import { projectName } from "@/lib/utils/format";
 
 export function SessionList() {
-  const { prefs } = useConfig();
+  const { prefs, updatePrefs } = useConfig();
   const [q, setQ] = useState("");
   const { sessions, isLoading, mutate } = useSessionList(undefined, q || undefined);
   const { replay, isReplaying } = useReplayStream();
-  const { state } = useActiveSession();
+  const { state, dispatch } = useActiveSession();
+
+  // 在指定项目下新建对话：设置 cwd + 重置会话状态
+  const newSessionForCwd = useCallback(
+    (cwd: string) => {
+      updatePrefs({ cwd });
+      dispatch({ type: "RESET" });
+      dispatch({ type: "SET_RESUME", sessionId: null });
+    },
+    [updatePrefs, dispatch],
+  );
 
   // 按 cwd 分组（保持组内按 updatedAt 降序，组间按组内最新会话时间降序）
   const grouped = useMemo(() => {
@@ -90,6 +104,7 @@ export function SessionList() {
                 activeId={state.resumeSessionId || state.threadId}
                 replayingId={isReplaying ? state.threadId : null}
                 onPick={replay}
+                onNewSession={newSessionForCwd}
               />
             ))}
           </div>
@@ -105,18 +120,56 @@ interface SessionGroupProps {
   activeId: string | null;
   replayingId: string | null;
   onPick: (id: string) => void;
+  onNewSession: (cwd: string) => void;
 }
 
-function SessionGroup({ cwd, items, activeId, replayingId, onPick }: SessionGroupProps) {
+function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession }: SessionGroupProps) {
   // 默认折叠（用户要求：项目菜单默认不展开）
   const [collapsed, setCollapsed] = useState(true);
   const name = projectName(cwd);
 
+  // 右键上下文菜单状态
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+
+  // 右键菜单：新建对话
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setCtxMenu({ x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
+
+  // 点击外部关闭右键菜单
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("contextmenu", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("contextmenu", close);
+    };
+  }, [ctxMenu]);
+
+  // 新建对话（停止事件冒泡，避免触发展开/折叠）
+  const handleNewSession = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setCtxMenu(null);
+      onNewSession(cwd);
+    },
+    [onNewSession, cwd],
+  );
+
   return (
-    <div className="mb-0.5">
+    <div className="mb-0.5" ref={groupRef}>
       <button
         onClick={() => setCollapsed((v) => !v)}
-        className="sticky top-0 z-10 flex w-full items-start gap-1.5 bg-[hsl(var(--surface))] px-3 py-1.5 text-left hover:bg-[hsl(var(--overlay)/0.03)] transition-colors focus-ring border-b border-[hsl(var(--overlay)/0.05)]"
+        onContextMenu={handleContextMenu}
+        className="sticky top-0 z-10 group flex w-full items-start gap-1.5 bg-[hsl(var(--surface))] px-3 py-1.5 text-left hover:bg-[hsl(var(--overlay)/0.03)] transition-colors focus-ring border-b border-[hsl(var(--overlay)/0.05)]"
         title={cwd}
       >
         <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" />
@@ -138,10 +191,26 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick }: SessionGrou
             {cwd}
           </div>
         </div>
+        {/* 悬停显示的新建对话按钮 */}
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={handleNewSession}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleNewSession(e as unknown as React.MouseEvent);
+            }
+          }}
+          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[hsl(var(--muted-foreground))] opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--overlay)/0.1)] hover:text-foreground transition-all focus-ring"
+          title="新建对话"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </span>
         <span
           className={`mt-0.5 shrink-0 text-xs text-[hsl(var(--muted-foreground))] transition-transform ${
             collapsed ? "" : "rotate-90"
-          }`}
+          } group-hover:opacity-0`}
         >
           ›
         </span>
@@ -158,6 +227,24 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick }: SessionGrou
             />
           ))}
         </ul>
+      )}
+
+      {/* 右键上下文菜单 */}
+      {ctxMenu && (
+        <div
+          className="fixed z-50 min-w-[140px] rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface))] py-1 shadow-lg animate-fade-in"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={handleNewSession}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            新建对话
+          </button>
+        </div>
       )}
     </div>
   );
