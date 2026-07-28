@@ -22,6 +22,7 @@ import { SessionView } from "@/components/session/SessionView";
 import { EmptyState } from "@/components/session/EmptyState";
 import { ConfigPanel } from "@/components/config/ConfigPanel";
 import { DiffViewerDialog } from "@/components/diff/DiffViewerDialog";
+import { Toaster } from "@/components/ui/Toaster";
 import type { FileChangeItem } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
 
@@ -56,6 +57,9 @@ export function AppShell() {
       {diffTarget && (
         <DiffViewerDialog item={diffTarget} onClose={closeDiff} />
       )}
+
+      {/* 全局通知（右下角 toast） */}
+      <Toaster />
     </div>
   );
 }

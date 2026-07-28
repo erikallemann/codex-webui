@@ -19,6 +19,7 @@ import type { AgentMessageItem } from "@/types/api";
 import { Copy, Check } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
+import { useToast } from "@/stores/toast";
 // codex 官方 logo：渐变色 SVG。
 // Next.js 15 静态导入 SVG 返回 StaticImageData 对象（{ src, width, height }），
 // 而非 URL 字符串，故取 .src 得到实际资源 URL；兼容字符串导入的旧版本。
@@ -35,12 +36,17 @@ interface Props {
 
 export function AgentMessageCard({ item, timestamp, showHeader = true }: Props) {
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   const copy = useCallback(() => {
-    navigator.clipboard.writeText(item.text ?? "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  }, [item.text]);
+    navigator.clipboard.writeText(item.text ?? "").then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+      toast({ title: "已复制", description: "内容已复制到剪贴板", type: "success", duration: 2000 });
+    }).catch(() => {
+      toast({ title: "复制失败", description: "请手动选择文本复制", type: "error", duration: 3000 });
+    });
+  }, [item.text, toast]);
 
   // 续接消息（同一轮后续）：不显示头像/名字，缩进对齐正文（与有头像时的正文左边界对齐）
   // 但仍显示时间戳，方便定位每条子回复的时间

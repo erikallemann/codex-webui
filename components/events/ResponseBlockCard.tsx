@@ -26,6 +26,7 @@ import { Brain, ChevronRight, Wrench, Copy, Check } from "lucide-react";
 import { EventCard } from "./EventCard";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
+import { useToast } from "@/stores/toast";
 // codex 官方 logo：渐变色 SVG。
 // Next.js 15 静态导入 SVG 返回 StaticImageData 对象，取 .src 得到实际资源 URL。
 import codexLogo from "@/logo/codex-color.svg";
@@ -44,14 +45,19 @@ interface Props {
 export function ResponseBlockCard({ processItems, finalMessage, onOpenDiff, timestamp }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   const copy = useCallback(() => {
     const text =
       finalMessage && finalMessage.type === "agent_message" ? finalMessage.text : "";
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
-  }, [finalMessage]);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+      toast({ title: "已复制", description: "内容已复制到剪贴板", type: "success", duration: 2000 });
+    }).catch(() => {
+      toast({ title: "复制失败", description: "请手动选择文本复制", type: "error", duration: 3000 });
+    });
+  }, [finalMessage, toast]);
 
   // 分离中间过程：中间 agent_message / reasoning / 动作
   const intermediateMessages = processItems.filter((i) => i.type === "agent_message");

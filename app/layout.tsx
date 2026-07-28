@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 import { ActiveSessionProvider } from "@/stores/active-session";
+import { ToastProvider } from "@/stores/toast";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 
 export const metadata: Metadata = {
@@ -27,7 +28,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <ActiveSessionProvider>{children}</ActiveSessionProvider>
+          <ToastProvider>
+            <ActiveSessionProvider>{children}</ActiveSessionProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>
