@@ -18,7 +18,7 @@ import type { FileChangeItem, ResponseItem } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
 import { TurnStatusCard } from "@/components/events/TurnStatusCard";
 import { EventCard } from "@/components/events/EventCard";
-import { ProcessGroupCard } from "@/components/events/ProcessGroupCard";
+import { ResponseBlockCard } from "@/components/events/ResponseBlockCard";
 import {
   ConversationNav,
   type ConversationAnchor,
@@ -27,17 +27,18 @@ import {
 /**
  * 展示用时间线条目类型（annotated useMemo 产物）。
  *
- * 在原始 TimelineEntry 基础上：
- * - 添加 showHeader 标志（仅 agent_message 使用）
- * - 新增 process_group 变体：将连续的中间过程事件（reasoning + 动作）
- *   合并为单个灰色可折叠块，弱化中间过程、突出最终输出
+ * - turn：turn 边界（可折叠触发器）
+ * - item：独立条目（user_message / error）
+ * - response_block：单轮 codex 回复整体块，包含头像+名字、可折叠过程块、
+ *   最终输出。将一轮中所有 agent_message + reasoning + 动作合并为一个块：
+ *   processItems = 中间过程（第一次输出 → 最后一次思考过程），finalMessage = 最终输出
  */
 type DisplayEntry =
-  | { kind: "turn"; id: string; status: "running" | "completed" | "failed"; usage?: import("@/types/api").Usage; startedAt?: number; completedAt?: number; durationMs?: number; showHeader: false }
+  | { kind: "turn"; id: string; status: "running" | "completed" | "failed"; usage?: import("@/types/api").Usage; startedAt?: number; completedAt?: number; durationMs?: number }
   | { kind: "item"; id: string; item: ResponseItem; timestamp?: string; showHeader: boolean }
-  | { kind: "process_group"; id: string; items: ResponseItem[]; timestamp?: string; showHeader: false };
+  | { kind: "response_block"; id: string; processItems: ResponseItem[]; finalMessage?: ResponseItem; timestamp?: string };
 
-/** 中间过程事件类型：这些会被合并到 process_group 中 */
+/** 中间过程事件类型：这些会被合并到 response_block 的 processItems 中 */
 const INTERMEDIATE_TYPES = new Set([
   "reasoning",
   "command_execution",
@@ -58,27 +59,51 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
   // 用户滚动锁定：用户主动滚动后短暂禁用自动滚动，避免抢夺滚动控制权
   const userScrollLockRef = useRef(false);
   const userScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 会话切换强制滚动：切换对话时直接定位到最新位置（绕过 isAtBottom 检查）
+  const prevSessionIdRef = useRef<string | null>(null);
+  const forceScrollRef = useRef(false);
 
   const entries = useMemo(() => state.timeline, [state.timeline]);
 
   /**
+   * turn 折叠状态：记录被用户折叠的 turn id（Set）。
+   * 默认展开（Set 为空），用户点击"已处理 Xm Ys"行可折叠该 turn，
+   * 折叠时隐藏该 turn 内的 response_block，
+   * 保留 user_message 与 error。
+   */
+  const [collapsedTurns, setCollapsedTurns] = useState<Set<string>>(new Set());
+  const toggleTurn = useCallback((turnId: string) => {
+    setCollapsedTurns((prev) => {
+      const next = new Set(prev);
+      if (next.has(turnId)) next.delete(turnId);
+      else next.add(turnId);
+      return next;
+    });
+  }, []);
+
+  /**
    * 将原始 timeline 条目转换为展示用条目（DisplayEntry[]）：
    *
-   * 1. showHeader 标志（agent_message 每轮首个显示头像，子回复不显示）
-   * 2. 分组合并：连续的中间过程事件（reasoning / command / file / search /
-   *    mcp / plan）合并为单个 process_group 灰色可折叠块
+   * 每个 turn 的所有事件（agent_message + reasoning + 动作）合并为一个 response_block：
+   * - processItems：中间过程（第一次输出 → 最后一次思考过程），含中间 agent_message
+   * - finalMessage：最后一条 agent_message（最终输出），始终展开显示
    *
-   * 边界事件（user_message / agent_message / turn / error）会 flush 当前组，
-   * 自身作为独立条目输出。function_call / function_call_output 直接跳过。
-   *
-   * 空 reasoning（无文本且无加密内容）在 flush 时过滤，不进入组。
+   * 边界事件（user_message / error / turn）会 flush 当前 block。
+   * turn 折叠时跳过该 turn 的 response_block（仅保留 turn 状态行）。
+   * function_call / function_call_output 直接跳过。
+   * 空 reasoning（无文本且无加密内容）在 flush 时过滤。
    */
   const annotated = useMemo<DisplayEntry[]>(() => {
     const result: DisplayEntry[] = [];
-    let agentHeaderShown = false;
-    let currentGroup: ResponseItem[] = [];
-    let currentGroupTimestamp: string | undefined;
     let groupCounter = 0;
+    let currentTurnCollapsed = false;
+
+    // 当前 response_block 累积状态
+    let blockStarted = false;
+    let blockProcessItems: ResponseItem[] = [];
+    let blockFinalMessage: ResponseItem | undefined = undefined;
+    let blockTimestamp: string | undefined = undefined;
+    let blockId: string | undefined = undefined;
 
     /** 判断 reasoning 是否为空（无文本且无加密内容） */
     const isReasoningEmpty = (item: ResponseItem): boolean => {
@@ -89,28 +114,33 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       return text.length === 0 && !hasEncrypted;
     };
 
-    /** flush 当前累积的中间过程组（过滤空 reasoning 后push） */
-    const flushGroup = () => {
-      if (currentGroup.length === 0) return;
-      const filtered = currentGroup.filter((item) => !isReasoningEmpty(item));
-      if (filtered.length > 0) {
+    /** flush 当前 response_block（过滤空 reasoning 后输出） */
+    const flushBlock = () => {
+      if (!blockStarted) return;
+      const filtered = blockProcessItems.filter((item) => !isReasoningEmpty(item));
+      // 有最终输出或有中间过程时才输出 block
+      if (blockFinalMessage || filtered.length > 0) {
         result.push({
-          kind: "process_group",
-          id: `pg_${groupCounter++}`,
-          items: filtered,
-          timestamp: currentGroupTimestamp,
-          showHeader: false,
+          kind: "response_block",
+          id: blockId!,
+          processItems: filtered,
+          finalMessage: blockFinalMessage,
+          timestamp: blockTimestamp,
         });
       }
-      currentGroup = [];
-      currentGroupTimestamp = undefined;
+      blockStarted = false;
+      blockProcessItems = [];
+      blockFinalMessage = undefined;
+      blockTimestamp = undefined;
+      blockId = undefined;
     };
 
     for (const e of entries) {
-      // turn 边界：flush + 重置 header 标志
+      // turn 边界：flush + 输出 turn 状态行 + 开启新 block
       if (e.kind === "turn") {
-        flushGroup();
-        agentHeaderShown = false;
+        flushBlock();
+        currentTurnCollapsed =
+          e.status === "completed" && collapsedTurns.has(e.id);
         result.push({
           kind: "turn",
           id: e.id,
@@ -119,8 +149,12 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
           startedAt: e.startedAt,
           completedAt: e.completedAt,
           durationMs: e.durationMs,
-          showHeader: false,
         });
+        // 未折叠的 turn 开启新 block；折叠的 turn 不开启（事件被跳过）
+        if (!currentTurnCollapsed) {
+          blockStarted = true;
+          blockId = `rb_${groupCounter++}`;
+        }
         continue;
       }
 
@@ -131,42 +165,48 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
         continue;
       }
 
-      // user_message：flush + 重置 header + 独立输出
+      // user_message：flush + 独立输出（不受 turn 折叠影响）
       if (rawType === "user_message") {
-        flushGroup();
-        agentHeaderShown = false;
+        flushBlock();
         result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: false });
         continue;
       }
 
-      // agent_message：flush + 独立输出（首个显示头像）
-      if (rawType === "agent_message") {
-        flushGroup();
-        const show = !agentHeaderShown;
-        agentHeaderShown = true;
-        result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: show });
+      // turn 折叠时：跳过 agent_message 与中间过程
+      if (currentTurnCollapsed) {
         continue;
       }
 
-      // error：flush + 独立输出（错误需要突出显示）
+      // error：flush + 独立输出
       if (rawType === "error") {
-        flushGroup();
+        flushBlock();
         result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: false });
         continue;
       }
 
-      // 中间过程事件：累积到当前组
-      if (INTERMEDIATE_TYPES.has(rawType)) {
-        if (currentGroup.length === 0) {
-          currentGroupTimestamp = e.timestamp;
+      // 兜底：事件出现在 turn 之前（无 turn 条目）时也开启 block
+      if (!blockStarted) {
+        blockStarted = true;
+        blockId = `rb_${groupCounter++}`;
+      }
+
+      // agent_message：旧 final 推入 processItems，新 message 成为 final
+      if (rawType === "agent_message") {
+        if (blockFinalMessage) {
+          blockProcessItems.push(blockFinalMessage);
         }
-        currentGroup.push(e.item);
+        blockFinalMessage = e.item;
+        if (!blockTimestamp) blockTimestamp = e.timestamp;
+      } else if (INTERMEDIATE_TYPES.has(rawType)) {
+        // 中间过程事件：累积到 processItems
+        blockProcessItems.push(e.item);
+        if (!blockTimestamp) blockTimestamp = e.timestamp;
       }
     }
-    flushGroup();
+    flushBlock();
 
     return result;
-  }, [entries]);
+  }, [entries, collapsedTurns]);
 
   /**
    * 用户消息锚点：用于左侧翻页条。
@@ -198,8 +238,8 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       const entry = annotated[index];
       if (!entry) return 60;
       if (entry.kind === "turn") return 44;
-      // process_group：折叠态单行灰色块（py-2 + 图标行 ≈ 40px）
-      if (entry.kind === "process_group") return 40;
+      // response_block：头像+名字(40) + 折叠过程块(40) + 最终输出(120) ≈ 200
+      if (entry.kind === "response_block") return 200;
       const type = entry.item.type;
       switch (type) {
         case "user_message":
@@ -208,7 +248,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
           return 120; // markdown 内容高度变化大，用较大估算
         case "error":
           return 60;
-        // reasoning / command / file / mcp / search / plan 已合并到 process_group，
+        // reasoning / command / file / mcp / search / plan 已合并到 response_block，
         // 以下分支仅作 fallback（独立输出时使用）
         case "reasoning":
           return 30;
@@ -233,6 +273,19 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     measureElement: undefined,
   });
 
+  // 会话切换检测：threadId 变化时标记需要强制滚动到底部
+  useEffect(() => {
+    const sid = state.threadId;
+    if (sid !== prevSessionIdRef.current) {
+      prevSessionIdRef.current = sid;
+      if (sid) {
+        forceScrollRef.current = true;
+        userScrollLockRef.current = false;
+        atBottomRef.current = true;
+      }
+    }
+  }, [state.threadId]);
+
   // 滚动到底部（用户在底部且未被锁定时）
   const scrollToBottom = useCallback(() => {
     if (userScrollLockRef.current) return;
@@ -245,13 +298,35 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     el.scrollTop = el.scrollHeight;
   }, []);
 
-  // 事件数量变化 → 自动滚动
+  // 事件数量变化 → 自动滚动（会话切换时强制滚动到底部）
   useEffect(() => {
+    if (forceScrollRef.current && annotated.length > 0) {
+      // 会话刚切换：强制滚动到底部，绕过 isAtBottom 检查
+      const doScroll = () => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      };
+      const raf = requestAnimationFrame(doScroll);
+      // 延迟二次滚动，等待虚拟列表测量完成
+      const timer = setTimeout(doScroll, 200);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    }
     scrollToBottom();
   }, [annotated.length, scrollToBottom]);
 
-  // 运行中流式追加 → 即使高度变化也跟随
+  // 运行中流式追加 → 即使高度变化也跟随（会话切换时强制跟随）
   useEffect(() => {
+    if (forceScrollRef.current) {
+      const el = scrollRef.current;
+      if (!el) return;
+      const raf = requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+      return () => cancelAnimationFrame(raf);
+    }
     if (userScrollLockRef.current) return;
     if (state.status !== "running") return;
     const el = scrollRef.current;
@@ -266,6 +341,23 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     });
     return () => cancelAnimationFrame(raf);
   }, [state.timeline, state.status]);
+
+  // 流式/回放结束后清除强制滚动标志（做最后一次滚动确保到底）
+  useEffect(() => {
+    if (forceScrollRef.current && state.status !== "running" && state.status !== "idle") {
+      const doScroll = () => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+        forceScrollRef.current = false;
+      };
+      const raf = requestAnimationFrame(doScroll);
+      const timer = setTimeout(doScroll, 300);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    }
+  }, [state.status]);
 
   // 用户滚动处理：更新 atBottom 标志，并设置短暂锁定防止自动滚动抢夺控制权
   const onScroll = useCallback(() => {
@@ -390,10 +482,23 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
                 }}
               >
                 {entry.kind === "turn" ? (
-                  <TurnStatusCard entry={entry} />
-                ) : entry.kind === "process_group" ? (
-                  <ProcessGroupCard
-                    items={entry.items}
+                <TurnStatusCard
+                  entry={entry}
+                  expanded={
+                    entry.status === "completed"
+                      ? !collapsedTurns.has(entry.id)
+                      : undefined
+                  }
+                  onToggle={
+                    entry.status === "completed"
+                      ? () => toggleTurn(entry.id)
+                      : undefined
+                  }
+                />
+              ) : entry.kind === "response_block" ? (
+                  <ResponseBlockCard
+                    processItems={entry.processItems}
+                    finalMessage={entry.finalMessage}
                     onOpenDiff={onOpenDiff}
                     timestamp={entry.timestamp}
                   />
