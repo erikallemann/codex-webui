@@ -19,8 +19,11 @@ import type { AgentMessageItem } from "@/types/api";
 import { Copy, Check } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
-// codex 官方 logo：渐变色 SVG，Next.js 默认将 .svg 导入为 URL 字符串
+// codex 官方 logo：渐变色 SVG。
+// Next.js 15 静态导入 SVG 返回 StaticImageData 对象（{ src, width, height }），
+// 而非 URL 字符串，故取 .src 得到实际资源 URL；兼容字符串导入的旧版本。
 import codexLogo from "@/logo/codex-color.svg";
+const codexLogoSrc = typeof codexLogo === "string" ? codexLogo : codexLogo.src;
 
 interface Props {
   item: AgentMessageItem;
@@ -66,7 +69,7 @@ export function AgentMessageCard({ item, timestamp, showHeader = true }: Props) 
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[hsl(var(--primary)/0.3)] bg-[hsl(var(--primary)/0.08)]">
         {/* codex 官方 logo（渐变色），size 20px 适配 32px 头像容器 */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={codexLogo} alt="codex" className="h-5 w-5" />
+        <img src={codexLogoSrc} alt="codex" className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="mb-1.5 flex items-center gap-2">
