@@ -14,14 +14,38 @@
 
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { FileChangeItem } from "@/types/api";
+import type { FileChangeItem, ResponseItem } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
 import { TurnStatusCard } from "@/components/events/TurnStatusCard";
 import { EventCard } from "@/components/events/EventCard";
+import { ProcessGroupCard } from "@/components/events/ProcessGroupCard";
 import {
   ConversationNav,
   type ConversationAnchor,
 } from "./ConversationNav";
+
+/**
+ * 展示用时间线条目类型（annotated useMemo 产物）。
+ *
+ * 在原始 TimelineEntry 基础上：
+ * - 添加 showHeader 标志（仅 agent_message 使用）
+ * - 新增 process_group 变体：将连续的中间过程事件（reasoning + 动作）
+ *   合并为单个灰色可折叠块，弱化中间过程、突出最终输出
+ */
+type DisplayEntry =
+  | { kind: "turn"; id: string; status: "running" | "completed" | "failed"; usage?: import("@/types/api").Usage; startedAt?: number; completedAt?: number; durationMs?: number; showHeader: false }
+  | { kind: "item"; id: string; item: ResponseItem; timestamp?: string; showHeader: boolean }
+  | { kind: "process_group"; id: string; items: ResponseItem[]; timestamp?: string; showHeader: false };
+
+/** 中间过程事件类型：这些会被合并到 process_group 中 */
+const INTERMEDIATE_TYPES = new Set([
+  "reasoning",
+  "command_execution",
+  "file_change",
+  "web_search",
+  "mcp_tool_call",
+  "plan_update",
+]);
 
 interface EventTimelineProps {
   onOpenDiff: (item: FileChangeItem) => void;
@@ -38,53 +62,110 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
   const entries = useMemo(() => state.timeline, [state.timeline]);
 
   /**
-   * 为每个条目计算 showHeader 标志：
-   * - user_message / turn 边界：重置标志，自身 showHeader=false
-   * - agent_message：每轮首个（user 消息或 turn 开始后的首个）showHeader=true，后续 false
-   * - 其他 item（reasoning / command / file 等）：showHeader=false（子回复不显示头像）
+   * 将原始 timeline 条目转换为展示用条目（DisplayEntry[]）：
    *
-   * 这样一个对话中 codex 的回复只在「开始回复」时显示头像+名字，
-   * 中间的子回复（思考、工具调用、续接消息）都不显示，直到用户下一次发消息。
+   * 1. showHeader 标志（agent_message 每轮首个显示头像，子回复不显示）
+   * 2. 分组合并：连续的中间过程事件（reasoning / command / file / search /
+   *    mcp / plan）合并为单个 process_group 灰色可折叠块
+   *
+   * 边界事件（user_message / agent_message / turn / error）会 flush 当前组，
+   * 自身作为独立条目输出。function_call / function_call_output 直接跳过。
+   *
+   * 空 reasoning（无文本且无加密内容）在 flush 时过滤，不进入组。
    */
-  const annotated = useMemo(() => {
+  const annotated = useMemo<DisplayEntry[]>(() => {
+    const result: DisplayEntry[] = [];
     let agentHeaderShown = false;
-    const mapped = entries.map((e) => {
+    let currentGroup: ResponseItem[] = [];
+    let currentGroupTimestamp: string | undefined;
+    let groupCounter = 0;
+
+    /** 判断 reasoning 是否为空（无文本且无加密内容） */
+    const isReasoningEmpty = (item: ResponseItem): boolean => {
+      if (item.type !== "reasoning") return false;
+      const text = typeof item.text === "string" ? item.text.trim() : "";
+      const hasEncrypted =
+        typeof item.encrypted_content === "string" && item.encrypted_content.length > 0;
+      return text.length === 0 && !hasEncrypted;
+    };
+
+    /** flush 当前累积的中间过程组（过滤空 reasoning 后push） */
+    const flushGroup = () => {
+      if (currentGroup.length === 0) return;
+      const filtered = currentGroup.filter((item) => !isReasoningEmpty(item));
+      if (filtered.length > 0) {
+        result.push({
+          kind: "process_group",
+          id: `pg_${groupCounter++}`,
+          items: filtered,
+          timestamp: currentGroupTimestamp,
+          showHeader: false,
+        });
+      }
+      currentGroup = [];
+      currentGroupTimestamp = undefined;
+    };
+
+    for (const e of entries) {
+      // turn 边界：flush + 重置 header 标志
       if (e.kind === "turn") {
+        flushGroup();
         agentHeaderShown = false;
-        return { ...e, showHeader: false };
+        result.push({
+          kind: "turn",
+          id: e.id,
+          status: e.status,
+          usage: e.usage,
+          startedAt: e.startedAt,
+          completedAt: e.completedAt,
+          durationMs: e.durationMs,
+          showHeader: false,
+        });
+        continue;
       }
-      const t = e.item.type;
-      if (t === "user_message") {
+
+      const rawType = (e.item as { type?: string }).type ?? "";
+
+      // 跳过 codex 原始工具调用记录（EventCard 未实现，渲染为 null）
+      if (rawType === "function_call" || rawType === "function_call_output") {
+        continue;
+      }
+
+      // user_message：flush + 重置 header + 独立输出
+      if (rawType === "user_message") {
+        flushGroup();
         agentHeaderShown = false;
-        return { ...e, showHeader: false };
+        result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: false });
+        continue;
       }
-      if (t === "agent_message") {
+
+      // agent_message：flush + 独立输出（首个显示头像）
+      if (rawType === "agent_message") {
+        flushGroup();
         const show = !agentHeaderShown;
         agentHeaderShown = true;
-        return { ...e, showHeader: show };
+        result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: show });
+        continue;
       }
-      return { ...e, showHeader: false };
-    });
-    // 过滤掉会渲染为 null 的条目，避免虚拟滚动为空条目分配估算高度，
-    // 导致总高度计算错误和滚动跳动/反弹：
-    // - reasoning 无文本且无加密内容
-    // - function_call / function_call_output：codex 原始工具调用记录，
-    //   EventCard 未实现对应卡片，渲染为 null 但占据虚拟空间
-    return mapped.filter((e) => {
-      if (e.kind === "turn") return true;
-      const rawType = (e.item as { type?: string }).type;
-      if (rawType === "function_call" || rawType === "function_call_output") {
-        return false;
+
+      // error：flush + 独立输出（错误需要突出显示）
+      if (rawType === "error") {
+        flushGroup();
+        result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: false });
+        continue;
       }
-      if (rawType === "reasoning") {
-        const item = e.item as { text?: string; encrypted_content?: string };
-        const text = typeof item.text === "string" ? item.text.trim() : "";
-        const hasEncrypted =
-          typeof item.encrypted_content === "string" && item.encrypted_content.length > 0;
-        return text.length > 0 || hasEncrypted;
+
+      // 中间过程事件：累积到当前组
+      if (INTERMEDIATE_TYPES.has(rawType)) {
+        if (currentGroup.length === 0) {
+          currentGroupTimestamp = e.timestamp;
+        }
+        currentGroup.push(e.item);
       }
-      return true;
-    });
+    }
+    flushGroup();
+
+    return result;
   }, [entries]);
 
   /**
@@ -117,14 +198,20 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       const entry = annotated[index];
       if (!entry) return 60;
       if (entry.kind === "turn") return 44;
+      // process_group：折叠态单行灰色块（py-2 + 图标行 ≈ 40px）
+      if (entry.kind === "process_group") return 40;
       const type = entry.item.type;
       switch (type) {
-        case "reasoning":
-          return 30; // 折叠态单行卡片
         case "user_message":
           return 60;
         case "agent_message":
           return 120; // markdown 内容高度变化大，用较大估算
+        case "error":
+          return 60;
+        // reasoning / command / file / mcp / search / plan 已合并到 process_group，
+        // 以下分支仅作 fallback（独立输出时使用）
+        case "reasoning":
+          return 30;
         case "command_execution":
           return 90;
         case "file_change":
@@ -135,8 +222,6 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
           return 70;
         case "plan_update":
           return 90;
-        case "error":
-          return 60;
         default:
           return 60;
       }
@@ -306,6 +391,12 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
               >
                 {entry.kind === "turn" ? (
                   <TurnStatusCard entry={entry} />
+                ) : entry.kind === "process_group" ? (
+                  <ProcessGroupCard
+                    items={entry.items}
+                    onOpenDiff={onOpenDiff}
+                    timestamp={entry.timestamp}
+                  />
                 ) : (
                   <EventCard
                     item={entry.item}
