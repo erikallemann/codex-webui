@@ -20,7 +20,7 @@ export function McpToolCallCard({ item }: Props) {
     <div className="timeline-item py-1.5 px-2">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-left focus-ring rounded"
+        className="flex w-full items-center gap-2 text-left focus-ring rounded-md"
       >
         <ChevronRight
           className={`h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${
@@ -49,7 +49,7 @@ export function McpToolCallCard({ item }: Props) {
               <div className="font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
                 args
               </div>
-              <pre className="mt-0.5 overflow-x-auto rounded border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 max-h-40 overflow-y-auto">
+              <pre className="mt-0.5 overflow-x-auto rounded-md border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 max-h-40 overflow-y-auto">
                 {formatJson(item.arguments)}
               </pre>
             </div>
@@ -59,7 +59,7 @@ export function McpToolCallCard({ item }: Props) {
               <div className="font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
                 output
               </div>
-              <pre className="mt-0.5 overflow-x-auto rounded border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 max-h-40 overflow-y-auto">
+              <pre className="mt-0.5 overflow-x-auto rounded-md border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 max-h-40 overflow-y-auto">
                 {formatJson(item.output)}
               </pre>
             </div>
@@ -69,7 +69,7 @@ export function McpToolCallCard({ item }: Props) {
               <div className="font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--danger))]">
                 error
               </div>
-              <pre className="mt-0.5 overflow-x-auto rounded border border-[hsl(var(--danger)/0.2)] bg-[hsl(var(--danger)/0.05)] p-2 font-mono text-[11px] text-[hsl(var(--danger)/0.9)] max-h-40 overflow-y-auto">
+              <pre className="mt-0.5 overflow-x-auto rounded-md border border-[hsl(var(--danger)/0.2)] bg-[hsl(var(--danger)/0.05)] p-2 font-mono text-[11px] text-[hsl(var(--danger)/0.9)] max-h-40 overflow-y-auto">
                 {item.error}
               </pre>
             </div>

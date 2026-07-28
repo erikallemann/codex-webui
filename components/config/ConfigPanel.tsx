@@ -69,7 +69,7 @@ export function ConfigPanel() {
           <Field label="cwd">
             <button
               onClick={() => setPickerOpen(true)}
-              className="flex w-full items-center gap-1.5 rounded border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 text-left hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+              className="flex w-full items-center gap-1.5 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 text-left hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
             >
               <FolderOpen className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
               <span

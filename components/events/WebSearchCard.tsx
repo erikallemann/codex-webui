@@ -20,7 +20,7 @@ export function WebSearchCard({ item }: Props) {
     <div className="timeline-item py-1.5 px-2">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-left focus-ring rounded"
+        className="flex w-full items-center gap-2 text-left focus-ring rounded-md"
       >
         <ChevronRight
           className={`h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${
@@ -49,7 +49,7 @@ export function WebSearchCard({ item }: Props) {
               href={r.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] px-2 py-1.5 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+              className="block rounded-md border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] px-2 py-1.5 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
             >
               <div className="flex items-center gap-1.5">
                 <span className="font-mono text-xs text-[hsl(var(--info))] truncate">

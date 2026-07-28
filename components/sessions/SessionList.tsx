@@ -209,7 +209,7 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession 
               handleNewSession(e as unknown as React.MouseEvent);
             }
           }}
-          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-[hsl(var(--muted-foreground))] opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--overlay)/0.1)] hover:text-foreground transition-all focus-ring"
+          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--overlay)/0.1)] hover:text-foreground transition-all focus-ring"
           title="新建对话"
         >
           <Plus className="h-3.5 w-3.5" />

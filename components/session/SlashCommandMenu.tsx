@@ -78,7 +78,7 @@ export function SlashCommandMenu({
               )}
             </span>
             {cmd.execute === "local" && (
-              <span className="shrink-0 rounded bg-[hsl(var(--accent)/0.1)] px-1.5 py-0.5 text-[10px] text-[hsl(var(--accent))]">
+              <span className="shrink-0 rounded-md bg-[hsl(var(--accent)/0.1)] px-1.5 py-0.5 text-[10px] text-[hsl(var(--accent))]">
                 本地
               </span>
             )}

@@ -198,7 +198,7 @@ export function ResponseBlockCard({
                 <button
                   onClick={handleToggle}
                   aria-expanded={isExpanded}
-                  className="flex flex-1 items-center gap-2 text-left group focus-ring rounded -mx-1 px-1 py-0.5 transition-colors hover:bg-[hsl(var(--overlay)/0.04)]"
+                  className="flex flex-1 items-center gap-2 text-left group focus-ring rounded-md -mx-1 px-1 py-0.5 transition-colors hover:bg-[hsl(var(--overlay)/0.04)]"
                 >
                   <ChevronRight
                     className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 transition-transform ${
@@ -334,7 +334,7 @@ export function ResponseBlockCard({
       {hasFinalMessage && (
         <button
           onClick={copy}
-          className="absolute bottom-1 right-2 flex items-center gap-1 rounded p-1 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity hover:bg-[hsl(var(--overlay)/0.05)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 focus-ring"
+          className="absolute bottom-1 right-2 flex items-center gap-1 rounded-md p-1 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity hover:bg-[hsl(var(--overlay)/0.05)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 focus-ring"
           title={copied ? "已复制" : "复制"}
           aria-label={copied ? "已复制" : "复制"}
         >

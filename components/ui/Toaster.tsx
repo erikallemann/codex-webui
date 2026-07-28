@@ -73,7 +73,7 @@ export function Toaster() {
             </div>
             <button
               onClick={() => dismiss(t.id)}
-              className="shrink-0 rounded p-0.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+              className="shrink-0 rounded-md p-0.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
               aria-label="关闭通知"
             >
               <X className="h-3.5 w-3.5" />

@@ -120,7 +120,7 @@ export function DiffViewerDialog({ item, onClose }: Props) {
             {item.patch && (
               <button
                 onClick={copyPatch}
-                className="rounded p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+                className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
                 title="Copy patch"
               >
                 {copied ? (
@@ -132,7 +132,7 @@ export function DiffViewerDialog({ item, onClose }: Props) {
             )}
             <button
               onClick={onClose}
-              className="rounded p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+              className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
               title="Close (Esc)"
             >
               <X className="h-4 w-4" />

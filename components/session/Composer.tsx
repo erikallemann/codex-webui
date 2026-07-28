@@ -309,10 +309,10 @@ export function Composer() {
           )}
 
           <div
-            className={`flex items-end gap-2 rounded-lg border bg-[hsl(var(--surface-2))] px-3 py-2 transition-colors ${
+            className={`flex items-end gap-2 rounded-xl border bg-[hsl(var(--surface-2))] px-3 py-2 shadow-sm transition-all ${
               disabled
                 ? "border-[hsl(var(--overlay)/0.05)] opacity-50"
-                : "border-[hsl(var(--overlay)/0.1)] focus-within:border-[hsl(var(--primary)/0.4)]"
+                : "border-[hsl(var(--overlay)/0.1)] focus-within:border-[hsl(var(--primary)/0.4)] focus-within:shadow-md"
             }`}
           >
             <textarea

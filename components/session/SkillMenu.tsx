@@ -94,7 +94,7 @@ export function SkillMenu({
                 )}
               </span>
               <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${badge.className}`}
+                className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] ${badge.className}`}
               >
                 {badge.label}
               </span>

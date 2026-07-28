@@ -68,7 +68,7 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="rounded p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+            className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
           >
             <X className="h-4 w-4" />
           </button>
@@ -79,7 +79,7 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
           <button
             onClick={() => data?.parent && load(data.parent)}
             disabled={!data?.parent}
-            className="rounded p-1 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] disabled:opacity-30 transition-colors focus-ring"
+            className="rounded-md p-1 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] disabled:opacity-30 transition-colors focus-ring"
             title="Parent"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -90,12 +90,12 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
             onKeyDown={(e) => {
               if (e.key === "Enter") load(path);
             }}
-            className="flex-1 rounded border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 font-mono text-xs text-foreground/80 outline-none focus:border-[hsl(var(--primary)/0.4)]"
+            className="flex-1 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 font-mono text-xs text-foreground/80 outline-none focus:border-[hsl(var(--primary)/0.4)]"
             placeholder="Enter path…"
           />
           <button
             onClick={() => load(path)}
-            className="rounded border border-[hsl(var(--overlay)/0.1)] px-2 py-1 font-mono text-[10px] text-foreground/70 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+            className="rounded-md border border-[hsl(var(--overlay)/0.1)] px-2 py-1 font-mono text-[10px] text-foreground/70 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
           >
             go
           </button>

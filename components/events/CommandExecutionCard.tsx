@@ -62,7 +62,7 @@ export function CommandExecutionCard({ item }: Props) {
 
             <button
               onClick={copy}
-              className="shrink-0 rounded p-1 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+              className="shrink-0 rounded-md p-1 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
               title="Copy command"
             >
               <Copy className="h-3 w-3" />
@@ -74,7 +74,7 @@ export function CommandExecutionCard({ item }: Props) {
           <div className="mt-1 flex items-center gap-2">
             {exitCode !== undefined && (
               <span
-                className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 font-mono text-[10px] ${
+                className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 font-mono text-[10px] ${
                   success
                     ? "bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]"
                     : "bg-[hsl(var(--danger)/0.12)] text-[hsl(var(--danger))]"
@@ -94,7 +94,7 @@ export function CommandExecutionCard({ item }: Props) {
             {hasOutput && (
               <button
                 onClick={() => setExpanded((v) => !v)}
-                className="flex items-center gap-1 font-mono text-[10px] text-[hsl(var(--muted-foreground))] hover:text-foreground transition-colors focus-ring rounded"
+                className="flex items-center gap-1 font-mono text-[10px] text-[hsl(var(--muted-foreground))] hover:text-foreground transition-colors focus-ring rounded-md"
               >
                 <ChevronRight
                   className={`h-2.5 w-2.5 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -114,12 +114,12 @@ export function CommandExecutionCard({ item }: Props) {
           {expanded && hasOutput && (
             <div className="mt-1.5 space-y-1">
               {stdout && (
-                <pre className="overflow-x-auto rounded border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 whitespace-pre-wrap max-h-60 overflow-y-auto">
+                <pre className="overflow-x-auto rounded-md border border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface-2))] p-2 font-mono text-[11px] text-foreground/70 whitespace-pre-wrap max-h-60 overflow-y-auto">
                   {stdout}
                 </pre>
               )}
               {stderr && (
-                <pre className="overflow-x-auto rounded border border-[hsl(var(--danger)/0.2)] bg-[hsl(var(--danger)/0.05)] p-2 font-mono text-[11px] text-[hsl(var(--danger)/0.9)] whitespace-pre-wrap max-h-60 overflow-y-auto">
+                <pre className="overflow-x-auto rounded-md border border-[hsl(var(--danger)/0.2)] bg-[hsl(var(--danger)/0.05)] p-2 font-mono text-[11px] text-[hsl(var(--danger)/0.9)] whitespace-pre-wrap max-h-60 overflow-y-auto">
                   {stderr}
                 </pre>
               )}

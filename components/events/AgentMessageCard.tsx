@@ -107,7 +107,7 @@ function CopyButton({ copied, onCopy }: { copied: boolean; onCopy: () => void })
   return (
     <button
       onClick={onCopy}
-      className="absolute bottom-1 right-2 flex items-center gap-1 rounded p-1 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity hover:bg-[hsl(var(--overlay)/0.05)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 focus-ring"
+      className="absolute bottom-1 right-2 flex items-center gap-1 rounded-md p-1 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity hover:bg-[hsl(var(--overlay)/0.05)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 focus-ring"
       title={copied ? "已复制" : "复制"}
       aria-label={copied ? "已复制" : "复制"}
     >

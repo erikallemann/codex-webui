@@ -68,7 +68,7 @@ export function Select({
         onClick={() => setOpen((v) => !v)}
         aria-label={ariaLabel}
         aria-expanded={open}
-        className={`flex w-full items-center justify-between gap-1.5 rounded border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 text-left font-mono text-[11px] text-foreground/80 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring ${
+        className={`flex w-full items-center justify-between gap-1.5 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 text-left font-mono text-[11px] text-foreground/80 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring ${
           className ?? ""
         }`}
       >

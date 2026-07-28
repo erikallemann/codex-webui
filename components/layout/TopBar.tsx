@@ -111,13 +111,13 @@ export function TopBar() {
         )}
 
         {prefs?.effort && (
-          <span className="rounded bg-[hsl(var(--overlay)/0.08)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
+          <span className="rounded-md bg-[hsl(var(--overlay)/0.08)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
             {prefs.effort}
           </span>
         )}
 
         {state.isReplay && (
-          <span className="rounded bg-[hsl(var(--accent)/0.15)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--accent))] uppercase tracking-wider">
+          <span className="rounded-md bg-[hsl(var(--accent)/0.15)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--accent))] uppercase tracking-wider">
             replay
           </span>
         )}
@@ -139,7 +139,7 @@ export function TopBar() {
             ].filter(Boolean).join("\n")}
           >
             {rl?.planType && (
-              <span className="rounded bg-[hsl(var(--info)/0.12)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[hsl(var(--info))]">
+              <span className="rounded-md bg-[hsl(var(--info)/0.12)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[hsl(var(--info))]">
                 {rl.planType}
               </span>
             )}

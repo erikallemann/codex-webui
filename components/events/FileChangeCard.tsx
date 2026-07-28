@@ -73,7 +73,7 @@ export function FileChangeCard({ item, onOpenDiff }: Props) {
         )}
 
         <span
-          className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider"
+          className="shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider"
           style={{
             color: `hsl(${meta.color})`,
             background: `hsl(${meta.color} / 0.1)`,

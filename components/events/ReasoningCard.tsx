@@ -49,7 +49,7 @@ export function ReasoningCard({ item, timestamp }: Props) {
     <div className="timeline-item py-1 px-2">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center gap-2 text-left group focus-ring rounded"
+        className="flex w-full items-center gap-2 text-left group focus-ring rounded-md"
       >
         <ChevronRight
           className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))] transition-transform ${
