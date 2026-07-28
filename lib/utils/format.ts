@@ -72,6 +72,25 @@ export function projectName(p: string): string {
   return parts.length > 0 ? parts[parts.length - 1] : "(no project)";
 }
 
+/**
+ * 规范化 cwd：Windows 驱动器字母统一大写。
+ *
+ * Windows 路径不区分大小写，但 codex CLI 传入的 cwd 可能因启动方式不同
+ * 出现 `d:\Projects\foo` 与 `D:\Projects\foo` 两种形式。归一化后：
+ * - 分组 key 用 toLowerCase 做大小写无关比较
+ * - 显示路径统一为首字母大写，避免同一项目出现两个条目
+ *
+ * 仅处理驱动器字母开头（如 `d:\` / `D:\`），其余路径原样返回。
+ */
+export function normalizeCwd(p: string): string {
+  if (!p) return p;
+  const driveMatch = p.match(/^([a-zA-Z]):([\\/])(.*)$/);
+  if (driveMatch) {
+    return `${driveMatch[1].toUpperCase()}:${driveMatch[2]}${driveMatch[3]}`;
+  }
+  return p;
+}
+
 /** 格式化时间戳为简短形式 */
 export function formatTime(iso: string): string {
   try {

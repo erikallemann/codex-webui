@@ -20,6 +20,7 @@ import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { SessionView } from "@/components/session/SessionView";
 import { EmptyState } from "@/components/session/EmptyState";
+import { Composer } from "@/components/session/Composer";
 import { ConfigPanel } from "@/components/config/ConfigPanel";
 import { DiffViewerDialog } from "@/components/diff/DiffViewerDialog";
 import { Toaster } from "@/components/ui/Toaster";
@@ -46,6 +47,9 @@ export function AppShell() {
         <main className="flex-1 min-h-0 overflow-hidden">
           {hasContent ? <SessionView onOpenDiff={openDiff} /> : <EmptyState />}
         </main>
+
+        {/* 输入框：空状态与会话状态均显示，便于新建对话后直接输入 */}
+        <Composer />
 
         {/* 配置面板：始终在主区域底部（对话框下方），每会话独立 */}
         <div className="shrink-0 border-t border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface))]">

@@ -18,7 +18,7 @@ import { SessionListItem } from "./SessionListItem";
 import { MessageSquare, RefreshCw, Search, Folder, Plus } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { ThreadItem } from "@/types/api";
-import { projectName } from "@/lib/utils/format";
+import { projectName, normalizeCwd } from "@/lib/utils/format";
 
 export function SessionList() {
   const { prefs, updatePrefs } = useConfig();
@@ -38,20 +38,27 @@ export function SessionList() {
   );
 
   // 按 cwd 分组（保持组内按 updatedAt 降序，组间按组内最新会话时间降序）
+  //
+  // Windows 路径不区分大小写，`d:\Projects\foo` 与 `D:\Projects\foo` 是同一项目。
+  // 分组 key 用 normalizeCwd(cwd).toLowerCase() 做大小写无关比较，
+  // 显示路径用 normalizeCwd 统一首字母大写，避免出现两个同名条目。
   const grouped = useMemo(() => {
-    const map = new Map<string, ThreadItem[]>();
+    const map = new Map<string, { displayCwd: string; items: ThreadItem[] }>();
     for (const s of sessions) {
-      const key = s.cwd || "(no project)";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(s);
+      const rawCwd = s.cwd || "(no project)";
+      const key = normalizeCwd(rawCwd).toLowerCase();
+      if (!map.has(key)) map.set(key, { displayCwd: normalizeCwd(rawCwd), items: [] });
+      map.get(key)!.items.push(s);
     }
     // 每组内部已由 API 返回降序，无需再排
     // 组间按组内最新 updatedAt 降序
-    return Array.from(map.entries()).sort((a, b) => {
-      const ta = a[1][0]?.updatedAt || "";
-      const tb = b[1][0]?.updatedAt || "";
-      return tb.localeCompare(ta);
-    });
+    return Array.from(map.values())
+      .map(({ displayCwd, items }) => [displayCwd, items] as [string, ThreadItem[]])
+      .sort((a, b) => {
+        const ta = a[1][0]?.updatedAt || "";
+        const tb = b[1][0]?.updatedAt || "";
+        return tb.localeCompare(ta);
+      });
   }, [sessions]);
 
   // 可选：按 prefs.cwd 高亮当前项目（暂不做过滤，仅标记）
