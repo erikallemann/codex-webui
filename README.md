@@ -6,6 +6,8 @@
 
 A lightweight, local graphical interface for the [OpenAI Codex CLI](https://github.com/openai/codex). It brings Codex CLI conversations, session history, configuration, and file diffs into the browser while keeping Codex CLI as the underlying engine. Everything runs on `127.0.0.1` for a single local user.
 
+This is an independent community project and is not affiliated with or endorsed by OpenAI. OpenAI and Codex names and marks belong to OpenAI.
+
 [中文文档](./README.zh-CN.md) · [Development Guide](./DEVELOPMENT.md)
 
 Upstream project: [openai/codex](https://github.com/openai/codex)
@@ -70,7 +72,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 ## Quick start
 
 ```bash
-git clone https://github.com/<your-org>/codex-webui.git
+git clone https://github.com/LuSeptem/codex-webui.git
 cd codex-webui
 npm install
 npm run dev
@@ -165,4 +167,4 @@ See [DEVELOPMENT.md](./DEVELOPMENT.md) for the project architecture, directory l
 
 ## License
 
-[MIT](./LICENSE)
+Released under the [MIT License](./LICENSE). See [Third-Party Notices](./THIRD_PARTY_NOTICES.md) for bundled third-party material. OpenAI and Codex names and marks are not licensed under the project license.

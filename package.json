@@ -2,6 +2,16 @@
   "name": "codex-webui",
   "version": "0.1.0",
   "private": true,
+  "description": "A lightweight, local graphical interface for OpenAI Codex CLI.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LuSeptem/codex-webui.git"
+  },
+  "homepage": "https://github.com/LuSeptem/codex-webui#readme",
+  "bugs": {
+    "url": "https://github.com/LuSeptem/codex-webui/issues"
+  },
   "scripts": {
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",

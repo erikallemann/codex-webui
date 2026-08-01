@@ -5,7 +5,7 @@ Codex Web UI is a lightweight, local graphical interface built on top of Codex C
 ## Development environment
 
 ```bash
-git clone https://github.com/<your-org>/codex-webui.git
+git clone https://github.com/LuSeptem/codex-webui.git
 cd codex-webui
 npm install
 npm run dev          # http://127.0.0.1:3000
@@ -129,7 +129,7 @@ stores/
 types/
   api.ts                        Shared frontend/backend types
 logo/
-  codex-color.svg               Official codex gradient logo
+  codex-color.svg               Codex compatibility mark; see THIRD_PARTY_NOTICES.md
 ```
 
 ## Core data flow
@@ -218,7 +218,7 @@ These conventions are enforced across the codebase — follow them when adding c
 - **Avatars in EventTimeline:** only the first `agent_message` in each round shows avatar + name + timestamp; subsequent continuation messages use `pl-11` indentation without avatar. `user_message` and turn boundaries reset the display flag.
 - **Thinking process:** implemented as a collapsible `ProcessGroupCard` with gray background (`surface-2`), default collapsed showing a summary preview + action count (e.g. "2 命令 · 1 文件"); expanded shows thinking text (left border + weakened color) and action list. Continuous intermediate events merge into one collapsible block; boundary events (`user`/`agent`/`turn`/`error`) trigger flush; empty reasoning is auto-filtered.
 - **ConversationNav:** positioned absolutely at `left-1.5 top-1/2 -translate-y-1/2` (vertical center of conversation left side). Dots default 6px light gray, hover 10px theme color. Tooltip shows user message preview (120-char truncation, `line-clamp-4`). Click triggers `virtualizer.scrollToIndex(index, { align: "start" })` after clearing `userScrollLock`. Auto-hides when fewer than 2 user messages; internal scroll (hidden scrollbar) when dots exceed 70vh. User messages deduplicated by `normalizeText` (whitespace compression) as key. Active dot auto-highlights based on visible conversation area.
-- **Codex avatar:** uses `logo/codex-color.svg` (purple-blue gradient official logo) at 20px in a 32px theme-color rounded container, adapting to light/dark themes. In Next.js 15, SVG static imports return `StaticImageData` objects — use the `.src` property to get the URL string, not the object directly (which renders `[object Object]` and causes `naturalWidth: 0`).
+- **Codex avatar:** uses `logo/codex-color.svg` (third-party and trademark notices are recorded in `THIRD_PARTY_NOTICES.md`) at 20px in a 32px theme-color rounded container, adapting to light/dark themes. In Next.js 15, SVG static imports return `StaticImageData` objects — use the `.src` property to get the URL string, not the object directly (which renders `[object Object]` and causes `naturalWidth: 0`).
 - **Copy button:** each Codex message card has a `CopyButton` in the bottom-right, appearing on hover/focus, copying original markdown via `navigator.clipboard.writeText(item.text)`. Success state shows a `Check` icon and "已复制" prompt for 1.2s.
 - **Code highlighting:** matches VSCode Dark+/Light+ token colors. Code blocks go through `rehype-highlight`; diffs go through `highlightAndSplit` (rebuilds new/old versions → highlights → splits by line → maps back to diff lines, preserving cross-line span continuity). `.py` code blocks use heuristic language detection (Python/JS-TS/Shell/JSON/Python-like fallback) for `text`-marked blocks. `Markdown.tsx` also converts LaTeX delimiters (`\[...\]` → `$$...$$`).
 - **Markdown images:** `mapMarkdownImageSource` accepts browser-safe image URLs and rewrites only paths under `.codex/visualizations/` to `/api/fs/image`. The route resolves real paths beneath `codexHome()/visualizations`, rejects traversal/symlink escapes and unsupported formats, and returns `nosniff` image responses. Missing or blocked sources render a compact `ImageOff` fallback.
@@ -256,3 +256,7 @@ These conventions are enforced across the codebase — follow them when adding c
 ## Tech stack
 
 Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · SWR · @tanstack/react-virtual · react-markdown · rehype-highlight · KaTeX · fzstd · lucide-react · next-themes
+
+## License and project identity
+
+Project source is released under the [MIT License](./LICENSE). The `private: true` package flag intentionally prevents accidental npm publication and does not change the source license. Third-party dependencies retain their own licenses, and bundled third-party material is recorded in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md). This is an independent community project; OpenAI and Codex names and marks belong to OpenAI and must not be used to imply affiliation or endorsement.

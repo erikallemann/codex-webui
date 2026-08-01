@@ -6,6 +6,8 @@
 
 一个面向 [OpenAI Codex CLI](https://github.com/openai/codex) 的轻量化本地图形界面。它以 Codex CLI 为底层引擎，将对话、历史会话、配置和文件差异集中呈现在浏览器中。全部服务仅运行在 `127.0.0.1`，供本地单用户使用。
 
+这是一个独立的社区项目，与 OpenAI 不存在隶属关系，也未获得 OpenAI 背书。OpenAI 与 Codex 的名称及标识归 OpenAI 所有。
+
 [English](./README.md) · [开发说明](./DEVELOPMENT.md)
 
 上游项目：[openai/codex](https://github.com/openai/codex)
@@ -70,7 +72,7 @@ Codex CLI 功能强大，但完全在终端中跟进长任务或回顾历史会�
 ## 快速开始
 
 ```bash
-git clone https://github.com/<your-org>/codex-webui.git
+git clone https://github.com/LuSeptem/codex-webui.git
 cd codex-webui
 npm install
 npm run dev
@@ -167,4 +169,4 @@ Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS · SWR · @tan
 
 ## 开源协议
 
-[MIT](./LICENSE)
+本项目采用 [MIT License](./LICENSE)。随仓库分发的第三方材料见[第三方声明](./THIRD_PARTY_NOTICES.md)；OpenAI 与 Codex 的名称及标识不属于项目许可证的授权范围。
