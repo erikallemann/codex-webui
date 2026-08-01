@@ -12,6 +12,12 @@ Upstream project: [openai/codex](https://github.com/openai/codex)
 
 ---
 
+## Preview
+
+![Codex Web UI safe showcase](./docs/showcase.png)
+
+This image is captured from `/showcase`, an isolated static page built entirely from fictional data. It does not read local sessions, invoke Codex CLI, or call application API routes.
+
 ## Why
 
 The Codex CLI is powerful, but working entirely in a terminal is not always the most convenient way to follow long tasks or revisit earlier sessions. This project provides a lightweight browser-based GUI on top of Codex CLI so you can:

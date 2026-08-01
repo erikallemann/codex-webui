@@ -26,6 +26,12 @@ Useful scripts:
 | `npm start` | Production server on `127.0.0.1:3000` |
 | `npm run lint` | ESLint (`eslint-config-next`) |
 
+## Safe showcase page
+
+`/showcase` is a statically rendered, screenshot-safe representation of the main interface. Its sessions, project path, commands, code, diffs, token usage, and timestamps are all fictional and defined directly in `app/showcase/page.tsx`.
+
+The showcase intentionally does not mount the live session store UI, call any `/api/*` route, read `CODEX_HOME`, or invoke Codex CLI. Keep it isolated when updating the design, retain the visible `SYNTHETIC DATA` labels, and never replace its fixtures with copied local session content. The README screenshot is captured at a 1440×900 viewport and stored as `docs/showcase.png`.
+
 ## Architecture overview
 
 ```
@@ -54,6 +60,7 @@ Because `exec` is a `POST`, the app cannot use `EventSource`. Instead the server
 app/
   layout.tsx                    RootLayout: ThemeProvider → LanguageProvider → ToastProvider → ActiveSessionProvider
   page.tsx                      Renders <AppShell />
+  showcase/page.tsx             Static synthetic-data UI used for safe README screenshots
   globals.css                   Tailwind + VSCode Dark+/Light+ token colors + KaTeX
   api/
     exec/route.ts               POST → app-server JSON-RPC bridge, SSE stream
