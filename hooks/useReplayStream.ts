@@ -6,21 +6,24 @@
  * 加载历史会话后，用户可输入新 prompt 走 /api/exec（resumeSessionId=<id>）续接。
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useActiveSession } from "@/stores/active-session";
 import { consumeSseStream } from "./sse-client";
+import {
+  abortActiveStream,
+  claimActiveStream,
+  isActiveStream,
+  releaseActiveStream,
+} from "./stream-controller";
 
 export function useReplayStream() {
   const { dispatch, dispatchEvent } = useActiveSession();
-  const abortRef = useRef<AbortController | null>(null);
   const [isReplaying, setIsReplaying] = useState(false);
 
   const replay = useCallback(
     async (sessionId: string) => {
-      abortRef.current?.abort();
-
       const controller = new AbortController();
-      abortRef.current = controller;
+      claimActiveStream(controller);
 
       // 进入回放模式（RESET + START_REPLAY）
       dispatch({ type: "RESET" });
@@ -53,10 +56,10 @@ export function useReplayStream() {
         }
       } finally {
         setIsReplaying(false);
-        // 回放结束后状态置为 completed（除非出错）
-        dispatch({ type: "ABORT" }); // 若 running 则转 aborted，否则不变
-        if (abortRef.current === controller) {
-          abortRef.current = null;
+        // 旧流被新流替换时，不能把新流状态误置为 aborted。
+        if (isActiveStream(controller)) {
+          dispatch({ type: "ABORT" });
+          releaseActiveStream(controller);
         }
       }
     },
@@ -64,7 +67,7 @@ export function useReplayStream() {
   );
 
   const abort = useCallback(() => {
-    abortRef.current?.abort();
+    abortActiveStream();
   }, []);
 
   return { replay, abort, isReplaying };

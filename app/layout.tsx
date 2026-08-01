@@ -4,6 +4,7 @@ import "katex/dist/katex.min.css";
 import { ActiveSessionProvider } from "@/stores/active-session";
 import { ToastProvider } from "@/stores/toast";
 import { ThemeProvider } from "@/components/theme/theme-provider";
+import { LanguageProvider } from "@/components/i18n/LanguageProvider";
 
 export const metadata: Metadata = {
   title: "Codex Web UI",
@@ -28,9 +29,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <ToastProvider>
-            <ActiveSessionProvider>{children}</ActiveSessionProvider>
-          </ToastProvider>
+          <LanguageProvider>
+            <ToastProvider>
+              <ActiveSessionProvider>{children}</ActiveSessionProvider>
+            </ToastProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </body>
     </html>

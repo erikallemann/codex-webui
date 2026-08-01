@@ -73,6 +73,17 @@ export function projectName(p: string): string {
 }
 
 /**
+ * Codex desktop stores ad-hoc conversations under Documents/Codex/<date>/….
+ * These directories are session artifacts, not user projects, so the sidebar
+ * groups them under one virtual "standalone conversations" entry.
+ */
+export function isStandaloneConversationCwd(p: string): boolean {
+  if (!p) return false;
+  const normalized = p.replace(/\//g, "\\").replace(/\\+$/, "");
+  return /^[a-z]:\\users\\[^\\]+\\documents\\codex\\.+/i.test(normalized);
+}
+
+/**
  * 规范化 cwd：Windows 驱动器字母统一大写。
  *
  * Windows 路径不区分大小写，但 codex CLI 传入的 cwd 可能因启动方式不同

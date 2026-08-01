@@ -14,6 +14,7 @@ import { WebSearchCard } from "./WebSearchCard";
 import { PlanUpdateCard } from "./PlanUpdateCard";
 import { UserMessageCard } from "./UserMessageCard";
 import { ErrorCard } from "./ErrorCard";
+import { UserInputRequestCard } from "./UserInputRequestCard";
 
 interface EventCardProps {
   item: ResponseItem;
@@ -42,6 +43,8 @@ export function EventCard({ item, onOpenDiff, timestamp, showHeader }: EventCard
       return <PlanUpdateCard item={item} />;
     case "user_message":
       return <UserMessageCard item={item} timestamp={timestamp} />;
+    case "user_input_request":
+      return <UserInputRequestCard item={item} />;
     case "error":
       return <ErrorCard item={item} />;
     default:

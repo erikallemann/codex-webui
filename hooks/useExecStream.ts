@@ -7,23 +7,27 @@
  * 返回 { run, abort, isRunning }。
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ExecRequest } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
 import { consumeSseStream } from "./sse-client";
+import {
+  abortActiveStream,
+  claimActiveStream,
+  isActiveStream,
+  releaseActiveStream,
+} from "./stream-controller";
+import { fetchUsageSnapshot } from "./useUsageRefresh";
 
 export function useExecStream() {
   const { dispatch, dispatchEvent } = useActiveSession();
-  const abortRef = useRef<AbortController | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
   const run = useCallback(
     async (req: ExecRequest) => {
-      // 中断已有流
-      abortRef.current?.abort();
-
       const controller = new AbortController();
-      abortRef.current = controller;
+      claimActiveStream(controller);
+      let streamedSessionId = req.resumeSessionId;
 
       // 重置状态（保留 resumeSessionId）
       dispatch({ type: "RESET" });
@@ -48,10 +52,27 @@ export function useExecStream() {
           return;
         }
 
-        await consumeSseStream(response, dispatchEvent, controller.signal);
+        await consumeSseStream(
+          response,
+          (event) => {
+            if (event.type === "thread.started") streamedSessionId = event.thread_id;
+            dispatchEvent(event);
+          },
+          controller.signal,
+        );
+
+        // exec 的公开 JSON 流不含底层 token_count；结束后从 rollout 补齐权威快照。
+        if (streamedSessionId && !controller.signal.aborted) {
+          try {
+            const snapshot = await fetchUsageSnapshot(streamedSessionId, controller.signal);
+            dispatchEvent({ type: "usage.updated", snapshot });
+          } catch {
+            // rollout 可能仍在落盘；顶部刷新按钮可稍后重试。
+          }
+        }
       } catch (err) {
         if (controller.signal.aborted) {
-          dispatch({ type: "ABORT" });
+          if (isActiveStream(controller)) dispatch({ type: "ABORT" });
         } else {
           dispatchEvent({
             type: "error",
@@ -60,16 +81,14 @@ export function useExecStream() {
         }
       } finally {
         setIsRunning(false);
-        if (abortRef.current === controller) {
-          abortRef.current = null;
-        }
+        releaseActiveStream(controller);
       }
     },
     [dispatch, dispatchEvent],
   );
 
   const abort = useCallback(() => {
-    abortRef.current?.abort();
+    abortActiveStream();
   }, []);
 
   return { run, abort, isRunning };

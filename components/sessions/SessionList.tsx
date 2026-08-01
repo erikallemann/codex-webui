@@ -18,11 +18,18 @@ import { SessionListItem } from "./SessionListItem";
 import { MessageSquare, RefreshCw, Search, Folder, Plus } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { ThreadItem } from "@/types/api";
-import { projectName, normalizeCwd } from "@/lib/utils/format";
+import {
+  isStandaloneConversationCwd,
+  projectName,
+  normalizeCwd,
+} from "@/lib/utils/format";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export function SessionList() {
-  const { prefs, updatePrefs } = useConfig();
+  const { t } = useLanguage();
+  const { updatePrefs } = useConfig();
   const [q, setQ] = useState("");
+  const [section, setSection] = useState<"projects" | "standalone">("projects");
   const { sessions, isLoading, mutate } = useSessionList(undefined, q || undefined);
   const { replay, isReplaying } = useReplayStream();
   const { state, dispatch } = useActiveSession();
@@ -42,27 +49,30 @@ export function SessionList() {
   // Windows 路径不区分大小写，`d:\Projects\foo` 与 `D:\Projects\foo` 是同一项目。
   // 分组 key 用 normalizeCwd(cwd).toLowerCase() 做大小写无关比较，
   // 显示路径用 normalizeCwd 统一首字母大写，避免出现两个同名条目。
-  const grouped = useMemo(() => {
+  const { projectGroups, standaloneSessions } = useMemo(() => {
     const map = new Map<string, { displayCwd: string; items: ThreadItem[] }>();
+    const standalone: ThreadItem[] = [];
     for (const s of sessions) {
       const rawCwd = s.cwd || "(no project)";
+      if (isStandaloneConversationCwd(rawCwd)) {
+        standalone.push(s);
+        continue;
+      }
       const key = normalizeCwd(rawCwd).toLowerCase();
       if (!map.has(key)) map.set(key, { displayCwd: normalizeCwd(rawCwd), items: [] });
       map.get(key)!.items.push(s);
     }
     // 每组内部已由 API 返回降序，无需再排
     // 组间按组内最新 updatedAt 降序
-    return Array.from(map.values())
+    const projects = Array.from(map.values())
       .map(({ displayCwd, items }) => [displayCwd, items] as [string, ThreadItem[]])
       .sort((a, b) => {
         const ta = a[1][0]?.updatedAt || "";
         const tb = b[1][0]?.updatedAt || "";
         return tb.localeCompare(ta);
       });
+    return { projectGroups: projects, standaloneSessions: standalone };
   }, [sessions]);
-
-  // 可选：按 prefs.cwd 高亮当前项目（暂不做过滤，仅标记）
-  void prefs;
 
   return (
     <div className="flex h-full flex-col">
@@ -74,18 +84,56 @@ export function SessionList() {
             <input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search sessions…"
+              placeholder={t("sessions.search")}
               className="flex-1 bg-transparent text-sm text-foreground placeholder:text-[hsl(var(--muted-foreground))] outline-none"
             />
           </div>
           <button
             onClick={() => mutate()}
             className="rounded-md border border-[hsl(var(--overlay)/0.1)] p-1.5 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
-            title="Refresh"
+            title={t("common.refresh")}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
           </button>
         </div>
+      </div>
+
+      {/* 项目 / 非项目对话：两个独立的顶层视图 */}
+      <div
+        className="grid grid-cols-2 gap-1 border-b border-[hsl(var(--overlay)/0.06)] bg-[hsl(var(--surface))] px-3 py-2"
+        role="tablist"
+        aria-label={t("sessions.categories")}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "projects"}
+          onClick={() => setSection("projects")}
+          className={`flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors focus-ring ${
+            section === "projects"
+              ? "bg-[hsl(var(--overlay)/0.08)] text-foreground shadow-sm"
+              : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--overlay)/0.04)] hover:text-foreground"
+          }`}
+        >
+          <Folder className="h-3.5 w-3.5" />
+          {t("sessions.projects")}
+          <span className="font-mono text-[10px] opacity-60">{projectGroups.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "standalone"}
+          onClick={() => setSection("standalone")}
+          className={`flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors focus-ring ${
+            section === "standalone"
+              ? "bg-[hsl(var(--overlay)/0.08)] text-foreground shadow-sm"
+              : "text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--overlay)/0.04)] hover:text-foreground"
+          }`}
+        >
+          <MessageSquare className="h-3.5 w-3.5" />
+          {t("sessions.chats")}
+          <span className="font-mono text-[10px] opacity-60">{standaloneSessions.length}</span>
+        </button>
       </div>
 
       {/* 列表 */}
@@ -94,16 +142,23 @@ export function SessionList() {
           <div className="px-3 py-4 text-center font-mono text-xs text-[hsl(var(--muted-foreground))]">
             loading…
           </div>
-        ) : grouped.length === 0 ? (
+        ) : section === "projects" && projectGroups.length === 0 ? (
+          <div className="px-3 py-6 text-center">
+            <Folder className="mx-auto mb-2 h-5 w-5 text-[hsl(var(--muted-foreground))]" />
+            <p className="text-xs text-[hsl(var(--muted-foreground))]">
+              {q ? t("sessions.noProjectMatches") : t("sessions.noProjects")}
+            </p>
+          </div>
+        ) : section === "standalone" && standaloneSessions.length === 0 ? (
           <div className="px-3 py-6 text-center">
             <MessageSquare className="mx-auto mb-2 h-5 w-5 text-[hsl(var(--muted-foreground))]" />
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
-              {q ? "No matching sessions" : "No sessions yet"}
+              {q ? t("sessions.noChatMatches") : t("sessions.noChats")}
             </p>
           </div>
-        ) : (
+        ) : section === "projects" ? (
           <div className="py-1">
-            {grouped.map(([cwd, items]) => (
+            {projectGroups.map(([cwd, items]) => (
               <SessionGroup
                 key={cwd}
                 cwd={cwd}
@@ -115,6 +170,19 @@ export function SessionList() {
               />
             ))}
           </div>
+        ) : (
+          <ul className="py-1">
+            {standaloneSessions.map((session) => (
+              <SessionListItem
+                key={session.id}
+                session={session}
+                active={(state.resumeSessionId || state.threadId) === session.id}
+                loading={isReplaying && state.threadId === session.id}
+                onClick={() => replay(session.id)}
+                indented={false}
+              />
+            ))}
+          </ul>
         )}
       </div>
     </div>
@@ -131,6 +199,7 @@ interface SessionGroupProps {
 }
 
 function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession }: SessionGroupProps) {
+  const { t } = useLanguage();
   // 默认折叠（用户要求：项目菜单默认不展开）
   const [collapsed, setCollapsed] = useState(true);
   const name = projectName(cwd);
@@ -210,7 +279,7 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession 
             }
           }}
           className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] opacity-0 group-hover:opacity-100 hover:bg-[hsl(var(--overlay)/0.1)] hover:text-foreground transition-all focus-ring"
-          title="新建对话"
+          title={t("sessions.newChat")}
         >
           <Plus className="h-3.5 w-3.5" />
         </span>
@@ -249,7 +318,7 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession 
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-foreground hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
           >
             <Plus className="h-3.5 w-3.5" />
-            新建对话
+            {t("sessions.newChat")}
           </button>
         </div>
       )}

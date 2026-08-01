@@ -9,15 +9,23 @@
  * 压缩文件：.jsonl.zst（7 天以上自动压缩）
  */
 
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
 
 /** 解析 codex home 目录 */
 export function codexHome(): string {
-  const env = process.env.CODEX_HOME;
+  // Reflect.get 保持这是运行时路径，避免 Next/@vercel-nft 在构建阶段
+  // 静态展开并递归扫描整个 ~/.codex（其中可能包含不可读的安全目录）。
+  const env = runtimeEnv("CODEX_HOME");
   if (env && env.trim()) return path.resolve(env);
-  return path.join(homedir(), ".codex");
+  const userHome = runtimeEnv(process.platform === "win32" ? "USERPROFILE" : "HOME");
+  return path.join(userHome || homedir(), ".codex");
+}
+
+function runtimeEnv(name: string): string | undefined {
+  const value = Reflect.get(process.env, name) as unknown;
+  return typeof value === "string" ? value : undefined;
 }
 
 /** sessions 根目录 */
@@ -83,14 +91,13 @@ export function findRolloutFile(sessionId: string): string | null {
 
 /** 递归查找包含指定 session_id 的文件，优先 plain */
 function findFileBySessionId(dir: string, sessionId: string): string | null {
-  const fs = require("node:fs") as typeof import("node:fs");
   let plain: string | null = null;
   let compressed: string | null = null;
 
   const walk = (d: string) => {
     let entries: string[];
     try {
-      entries = fs.readdirSync(d);
+      entries = readdirSync(d);
     } catch {
       return;
     }
@@ -98,7 +105,7 @@ function findFileBySessionId(dir: string, sessionId: string): string | null {
       const full = path.join(d, entry);
       let st;
       try {
-        st = fs.statSync(full);
+        st = statSync(full);
       } catch {
         continue;
       }

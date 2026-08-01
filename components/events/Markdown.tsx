@@ -24,7 +24,10 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { ImageOff } from "lucide-react";
+import { mapMarkdownImageSource } from "@/lib/codex/markdown-image";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 interface MarkdownProps {
   /** 允许 undefined/null/空字符串，组件内部做容错（exec 流可能透传缺失 text 的 item） */
@@ -164,25 +167,61 @@ function MarkdownImpl({ children, className }: MarkdownProps) {
   if (!processed) return null;
   return (
     <div
-      className={`prose prose-base max-w-none text-foreground/90
+      className={`prose prose-base min-w-0 max-w-none overflow-hidden [overflow-wrap:anywhere] text-foreground/90
         prose-p:my-2 prose-p:leading-7
         prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-foreground prose-headings:my-3
         prose-code:font-mono prose-code:text-[0.9em] prose-code:text-[hsl(var(--primary))] prose-code:bg-[hsl(var(--overlay)/0.06)] prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none
-        prose-pre:bg-[hsl(var(--surface-2))] prose-pre:border prose-pre:border-[hsl(var(--overlay)/0.08)] prose-pre:rounded-md prose-pre:overflow-x-auto prose-pre:text-[0.875em] prose-pre:my-3
+        prose-pre:max-w-full prose-pre:bg-[hsl(var(--surface-2))] prose-pre:border prose-pre:border-[hsl(var(--overlay)/0.08)] prose-pre:rounded-md prose-pre:overflow-x-auto prose-pre:text-[0.875em] prose-pre:my-3
         prose-a:text-[hsl(var(--info))] prose-a:no-underline hover:prose-a:underline
         prose-strong:text-foreground prose-strong:font-semibold
         prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5
         prose-blockquote:border-[hsl(var(--primary)/0.4)] prose-blockquote:text-[hsl(var(--muted-foreground))]
-        prose-table:text-sm prose-th:border-[hsl(var(--overlay)/0.1)] prose-td:border-[hsl(var(--overlay)/0.1)]
+        prose-table:block prose-table:max-w-full prose-table:overflow-x-auto prose-table:text-sm prose-th:border-[hsl(var(--overlay)/0.1)] prose-td:border-[hsl(var(--overlay)/0.1)]
+        prose-img:max-w-full
         ${className ?? ""}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }], rehypeKatex]}
+        components={{
+          img: ({ src, alt }) => <MarkdownImage source={src} alt={alt} />,
+        }}
       >
         {processed}
       </ReactMarkdown>
     </div>
+  );
+}
+
+function MarkdownImage({ source, alt }: { source?: string | Blob; alt?: string }) {
+  const { t } = useLanguage();
+  const mappedSource = useMemo(() => mapMarkdownImageSource(source), [source]);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [mappedSource]);
+
+  if (!mappedSource || failed) {
+    return (
+      <span
+        role="img"
+        aria-label={alt || t("image.unavailable")}
+        className="my-3 flex max-w-sm items-center gap-2 rounded-lg border border-dashed border-[hsl(var(--overlay)/0.16)] bg-[hsl(var(--surface-2))] px-3 py-2 text-xs text-[hsl(var(--muted-foreground))]"
+      >
+        <ImageOff className="h-4 w-4 shrink-0" />
+        <span className="truncate">{alt || t("image.unavailable")}</span>
+      </span>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={mappedSource}
+      alt={alt || ""}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="my-3 max-h-[32rem] w-auto max-w-full rounded-lg border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] object-contain shadow-sm"
+    />
   );
 }
 

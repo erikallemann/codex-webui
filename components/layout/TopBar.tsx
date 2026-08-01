@@ -11,18 +11,23 @@
  */
 
 import { useActiveSession } from "@/stores/active-session";
-import { useExecStream } from "@/hooks/useExecStream";
 import { useConfig } from "@/hooks/useConfig";
-import { Square, Circle, Loader2, Zap, Clock } from "lucide-react";
+import { useUsageRefresh } from "@/hooks/useUsageRefresh";
+import { abortActiveStream } from "@/hooks/stream-controller";
+import { useToast } from "@/stores/toast";
+import { Square, Circle, Loader2, Zap, Clock, RefreshCw } from "lucide-react";
 import { formatTokens, shortPath } from "@/lib/utils/format";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export function TopBar() {
   const { state } = useActiveSession();
-  const { abort, isRunning } = useExecStream();
   const { config, prefs } = useConfig();
+  const { refresh, isRefreshing, canRefresh } = useUsageRefresh();
+  const { toast } = useToast();
+  const { t, locale } = useLanguage();
 
   const isRunningState = state.status === "running";
-  const showStop = isRunning || isRunningState;
+  const showStop = isRunningState;
 
   const statusLabel = {
     idle: "idle",
@@ -42,13 +47,10 @@ export function TopBar() {
 
   // 当前模型的上下文窗口
   const currentModel = config?.models.find((m) => m.value === prefs?.model);
-  const contextWindow = currentModel?.contextWindow ?? 0;
+  const contextWindow = state.contextWindow ?? currentModel?.contextWindow ?? 0;
 
-  // 累计输入 token（含缓存）作为上下文占用估算
-  const usedTokens =
-    state.totalUsage.input_tokens +
-    state.totalUsage.cached_input_tokens +
-    state.totalUsage.cache_write_input_tokens;
+  // input_tokens 已包含缓存命中的输入；优先使用 rollout 最近一次模型调用的权威值。
+  const usedTokens = state.contextTokens ?? 0;
   const ctxPct =
     contextWindow > 0 ? Math.min(100, (usedTokens / contextWindow) * 100) : 0;
 
@@ -65,18 +67,31 @@ export function TopBar() {
     if (!rl?.primary?.resetsAt) return null;
     try {
       const d = new Date(rl.primary.resetsAt * 1000);
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
-        " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return d.toLocaleDateString(locale, { month: "short", day: "numeric" }) +
+        " " + d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
     } catch {
       return null;
     }
   })();
 
+  const refreshUsage = async () => {
+    try {
+      await refresh();
+      toast({ title: t("usage.refreshed"), type: "success", duration: 1600 });
+    } catch (error) {
+      toast({
+        title: t("usage.refreshFailed"),
+        description: error instanceof Error ? error.message : String(error),
+        type: "error",
+      });
+    }
+  };
+
   return (
-    <header className="flex h-10 shrink-0 items-center justify-between border-b border-[hsl(var(--overlay)/0.05)] px-4 bg-[hsl(var(--surface))]">
+    <header className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface))] px-2 sm:px-4">
       {/* 左：会话标识 */}
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden lg:gap-3">
+        <div className="flex shrink-0 items-center gap-1.5">
           {isRunningState ? (
             <Loader2 className="h-3 w-3 animate-spin text-[hsl(var(--primary))]" />
           ) : state.status === "completed" ? (
@@ -89,15 +104,9 @@ export function TopBar() {
           <span className={`font-mono text-xs ${statusColor}`}>{statusLabel}</span>
         </div>
 
-        {state.threadId && (
-          <span className="font-mono text-xs text-[hsl(var(--muted-foreground))] truncate max-w-40">
-            {state.threadId.slice(0, 8)}
-          </span>
-        )}
-
         {prefs?.cwd && (
           <span
-            className="font-mono text-xs text-[hsl(var(--muted-foreground))] truncate max-w-48"
+            className="hidden max-w-48 truncate font-mono text-xs text-[hsl(var(--muted-foreground))] lg:inline"
             title={prefs.cwd}
           >
             {shortPath(prefs.cwd)}
@@ -105,30 +114,30 @@ export function TopBar() {
         )}
 
         {prefs?.model && (
-          <span className="font-mono text-xs text-[hsl(var(--muted-foreground))]">
+          <span className="hidden max-w-28 truncate font-mono text-xs text-[hsl(var(--muted-foreground))] lg:inline">
             {prefs.model}
           </span>
         )}
 
         {prefs?.effort && (
-          <span className="rounded-md bg-[hsl(var(--overlay)/0.08)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
+          <span className="hidden rounded-md bg-[hsl(var(--overlay)/0.08)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--muted-foreground))] lg:inline">
             {prefs.effort}
           </span>
         )}
 
         {state.isReplay && (
-          <span className="rounded-md bg-[hsl(var(--accent)/0.15)] px-1.5 py-0.5 font-mono text-[10px] text-[hsl(var(--accent))] uppercase tracking-wider">
+          <span className="hidden rounded-md bg-[hsl(var(--accent)/0.15)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--accent))] lg:inline">
             replay
           </span>
         )}
       </div>
 
       {/* 右：codex 速率限制 + 上下文进度 + token 用量 + Stop */}
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-3">
         {/* codex 速率限制用量（plan + used% + reset） */}
         {hasRateLimits && (
           <div
-            className="flex items-center gap-1.5"
+            className="flex shrink-0 items-center gap-1.5"
             title={[
               `codex rate limit`,
               rl?.planType ? `plan: ${rl.planType}` : null,
@@ -157,7 +166,7 @@ export function TopBar() {
                         ? "bg-[hsl(var(--accent))]"
                         : "bg-[hsl(var(--info))]"
                   }`}
-                  style={{ width: `${Math.max(2, rlUsedPct)}%` }}
+                  style={{ width: `${rlUsedPct === 0 ? 0 : Math.max(2, rlUsedPct)}%` }}
                 />
               </div>
             </div>
@@ -172,14 +181,15 @@ export function TopBar() {
 
         {/* 分隔线 */}
         {hasRateLimits && contextWindow > 0 && (
-          <div className="h-6 w-px bg-[hsl(var(--overlay)/0.08)]" />
+          <div className="hidden h-6 w-px bg-[hsl(var(--overlay)/0.08)] sm:block" />
         )}
 
         {/* 上下文窗口进度条 */}
         {contextWindow > 0 && (
           <div
-            className="flex items-center gap-1.5"
-            title={`上下文占用: ${formatTokens(usedTokens)} / ${formatTokens(contextWindow)} (${ctxPct.toFixed(1)}%)`}
+            className="group relative flex shrink-0 items-center gap-1.5"
+            tabIndex={0}
+            aria-describedby="context-usage-tooltip"
           >
             <div className="flex flex-col items-end gap-0.5">
               <span className="font-mono text-[9px] text-[hsl(var(--muted-foreground))]">
@@ -194,15 +204,22 @@ export function TopBar() {
                         ? "bg-[hsl(var(--accent))]"
                         : "bg-[hsl(var(--primary))]"
                   }`}
-                  style={{ width: `${Math.max(2, ctxPct)}%` }}
+                  style={{ width: `${ctxPct === 0 ? 0 : Math.max(2, ctxPct)}%` }}
                 />
               </div>
+            </div>
+            <div
+              id="context-usage-tooltip"
+              role="tooltip"
+              className="pointer-events-none absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-md border border-[hsl(var(--overlay)/0.12)] bg-[hsl(var(--surface))] px-2.5 py-1.5 font-mono text-[10px] text-foreground opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              {t("usage.used")} {usedTokens.toLocaleString(locale)} / {t("usage.total")} {contextWindow.toLocaleString(locale)} tokens · {ctxPct.toFixed(1)}%
             </div>
           </div>
         )}
 
         {/* token 用量（常驻显示） */}
-        <div className="flex items-center gap-2 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
+        <div className="hidden items-center gap-2 font-mono text-[10px] text-[hsl(var(--muted-foreground))] lg:flex">
           <span title="input tokens" className={hasUsage ? "text-foreground/70" : ""}>
             ↑{formatTokens(state.totalUsage.input_tokens)}
           </span>
@@ -221,9 +238,19 @@ export function TopBar() {
           )}
         </div>
 
+        <button
+          onClick={refreshUsage}
+          disabled={!canRefresh || isRefreshing}
+          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--overlay)/0.08)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 focus-ring"
+          title={canRefresh ? t("usage.refresh") : t("usage.refreshUnavailable")}
+          aria-label={t("usage.refresh")}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
+        </button>
+
         {showStop && (
           <button
-            onClick={abort}
+            onClick={abortActiveStream}
             className="inline-flex items-center gap-1 rounded-md border border-[hsl(var(--danger)/0.4)] bg-[hsl(var(--danger)/0.1)] px-2 py-1 text-xs font-medium text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger)/0.2)] transition-colors focus-ring"
           >
             <Square className="h-3 w-3 fill-current" />

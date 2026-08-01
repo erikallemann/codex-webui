@@ -1,19 +1,32 @@
-/**
- * POST /api/exec
- *
- * spawn codex exec --json，将 stdout JSONL 事件流转为 SSE 帧转发到前端。
- * request.signal abort 时 kill 子进程。
- */
+/** POST /api/exec — bridge Codex app-server JSON-RPC to the existing SSE UI. */
 
+import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
-import type { ExecRequest, SseEvent } from "@/types/api";
+import type { ExecRequest, Usage } from "@/types/api";
 import { createSseResponse } from "@/lib/server/sse";
-import { buildExecArgv, validateExecRequest, needsStdin } from "@/lib/codex/args";
-import { spawnCodex } from "@/lib/codex/spawn";
-import { parseEventLine } from "@/lib/codex/events";
+import { validateExecRequest } from "@/lib/codex/args";
+import { AppServerConnection } from "@/lib/codex/app-server";
+import {
+  mapAppServerItem,
+  mapTokenUsage,
+  mapUserInputRequest,
+  type AppServerUserInputParams,
+} from "@/lib/codex/app-server-events";
+import {
+  clearConnectionInteractions,
+  registerInteraction,
+} from "@/lib/codex/interactions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const EMPTY_USAGE: Usage = {
+  input_tokens: 0,
+  cached_input_tokens: 0,
+  cache_write_input_tokens: 0,
+  output_tokens: 0,
+  reasoning_output_tokens: 0,
+};
 
 export async function POST(request: NextRequest): Promise<Response> {
   let body: Partial<ExecRequest>;
@@ -24,75 +37,142 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   const validationError = validateExecRequest(body);
-  if (validationError) {
-    return Response.json({ error: validationError }, { status: 400 });
-  }
-
+  if (validationError) return Response.json({ error: validationError }, { status: 400 });
   const req = body as ExecRequest;
-  let argv: string[];
-  try {
-    argv = buildExecArgv(req);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return Response.json({ error: message }, { status: 400 });
-  }
-
-  const useStdin = needsStdin(req);
 
   return createSseResponse(async (emit) => {
-    // spawn codex（binary.ts 解析失败会抛 CODEX_NOT_FOUND）
-    let handle;
+    let connection: AppServerConnection;
     try {
-      handle = spawnCodex(argv, req.cwd, request.signal, useStdin ? req.prompt : undefined);
-    } catch (err) {
-      const e = err as Error & { code?: string };
-      emit({
-        type: "error",
-        message: e.code === "CODEX_NOT_FOUND" ? e.message : `spawn failed: ${e.message}`,
-      });
+      connection = new AppServerConnection(req.cwd, request.signal);
+      await connection.initialize();
+    } catch (error) {
+      emit({ type: "error", message: formatError(error, "app-server startup failed") });
       return;
     }
 
-    let eventCount = 0;
-    let lastEventWasTurn = false;
+    let latestUsage = EMPTY_USAGE;
+    try {
+      const common = {
+        cwd: req.cwd,
+        model: req.model || null,
+        approvalPolicy: req.approvalPolicy === "on-failure" ? "on-request" : req.approvalPolicy,
+        // Web UI 目前只呈现结构化问题；权限审批仍交给 Codex 的自动审查器，
+        // 避免 app-server 在不可见的 approval request 上挂起。
+        approvalsReviewer: "auto_review",
+        sandbox: req.sandbox,
+      };
+      const result = req.resumeSessionId
+        ? await connection.request("thread/resume", {
+            threadId: req.resumeSessionId,
+            ...common,
+            excludeTurns: true,
+          })
+        : await connection.request("thread/start", {
+            ...common,
+            ephemeral: req.ephemeral ?? false,
+          });
+      const threadId = readThreadId(result) ?? req.resumeSessionId;
+      if (!threadId) throw new Error("app-server returned no thread id");
 
-    // 消费 stdout 事件流
-    for await (const line of handle.stdout) {
-      if (request.signal.aborted) break;
-      const event = parseEventLine(line);
-      if (event) {
-        emit(event as SseEvent);
-        eventCount++;
-        lastEventWasTurn = event.type === "turn.completed" || event.type === "turn.failed";
+      emit({ type: "thread.started", thread_id: threadId });
+      const activeModel = readString(result, "model") ?? req.model ?? "";
+      void connection.request("turn/start", {
+        threadId,
+        input: [{ type: "text", text: req.prompt, text_elements: [] }],
+        cwd: req.cwd,
+        model: req.model || null,
+        effort: req.effort || null,
+        approvalPolicy: common.approvalPolicy,
+        approvalsReviewer: common.approvalsReviewer,
+        collaborationMode: req.collaborationMode === "plan"
+          ? {
+              mode: "plan",
+              settings: {
+                model: activeModel,
+                reasoning_effort: req.effort || null,
+                developer_instructions: null,
+              },
+            }
+          : undefined,
+      }).catch((error) => {
+        emit({ type: "error", message: formatError(error, "turn start failed") });
+        connection.kill();
+      });
+
+      for await (const message of connection.events()) {
+        if (request.signal.aborted) break;
+        const method = message.method;
+        const params = (message.params ?? {}) as Record<string, unknown>;
+
+        if (method === "turn/started") {
+          emit({ type: "turn.started", startedAt: readTurnTime(params, "startedAt") });
+        } else if (method === "item/completed") {
+          const item = params.item as Record<string, unknown> | undefined;
+          if (item) {
+            for (const mapped of mapAppServerItem(item)) {
+              emit({ type: "item.completed", item: mapped, timestamp: new Date().toISOString() });
+            }
+          }
+        } else if (method === "thread/tokenUsage/updated") {
+          const snapshot = mapTokenUsage((params.tokenUsage ?? {}) as Parameters<typeof mapTokenUsage>[0]);
+          latestUsage = snapshot.lastUsage ?? latestUsage;
+          emit({ type: "usage.updated", snapshot });
+        } else if (method === "item/tool/requestUserInput" && message.id !== undefined) {
+          const interactionId = randomUUID();
+          registerInteraction(interactionId, { connection, requestId: message.id });
+          emit(mapUserInputRequest(interactionId, params as unknown as AppServerUserInputParams));
+        } else if (method === "turn/completed") {
+          const turn = (params.turn ?? {}) as Record<string, unknown>;
+          if (turn.status === "failed") {
+            const error = turn.error as { message?: string } | null;
+            emit({ type: "turn.failed", error: error?.message ?? "turn failed" });
+          } else {
+            emit({
+              type: "turn.completed",
+              usage: latestUsage,
+              startedAt: numberOrUndefined(turn.startedAt),
+              completedAt: numberOrUndefined(turn.completedAt),
+              durationMs: numberOrUndefined(turn.durationMs),
+            });
+          }
+          break;
+        } else if (method === "error") {
+          const error = params.error as { message?: string } | undefined;
+          emit({ type: "error", message: error?.message ?? String(params.message ?? "Codex error") });
+        }
       }
-    }
-
-    const exitCode = await handle.onExit;
-
-    // 子进程非 0 退出且无 turn 事件 → 透传 stderr 作为 error
-    if (exitCode !== 0 && exitCode !== null && !lastEventWasTurn) {
-      const stderr = handle.stderr().trim();
-      if (stderr) {
-        emit({
-          type: "error",
-          message: `codex exited with code ${exitCode}`,
-          stderr: stderr.slice(-2000),
-        });
-      } else {
-        emit({
-          type: "error",
-          message: `codex exited with code ${exitCode}`,
-        });
-      }
-    }
-
-    // 无任何事件且无 stderr → 通用错误
-    if (eventCount === 0 && exitCode === 0) {
+    } catch (error) {
       emit({
         type: "error",
-        message: "codex produced no output",
-        stderr: handle.stderr().trim().slice(-2000) || undefined,
+        message: formatError(error, "app-server stream failed"),
+        stderr: connection.stderr().trim().slice(-2000) || undefined,
       });
+    } finally {
+      clearConnectionInteractions(connection);
+      connection.kill();
     }
   }, request.signal);
+}
+
+function readThreadId(result: unknown): string | null {
+  const thread = (result as { thread?: { id?: unknown } } | null)?.thread;
+  return typeof thread?.id === "string" ? thread.id : null;
+}
+
+function readString(result: unknown, key: string): string | null {
+  const value = (result as Record<string, unknown> | null)?.[key];
+  return typeof value === "string" ? value : null;
+}
+
+function readTurnTime(params: Record<string, unknown>, key: string): number | undefined {
+  const turn = params.turn as Record<string, unknown> | undefined;
+  return numberOrUndefined(turn?.[key]);
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  return typeof value === "number" ? value : undefined;
+}
+
+function formatError(error: unknown, prefix: string): string {
+  return `${prefix}: ${error instanceof Error ? error.message : String(error)}`;
 }

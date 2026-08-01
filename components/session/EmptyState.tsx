@@ -9,17 +9,13 @@
 import { Terminal, ArrowRight } from "lucide-react";
 import { useConfig } from "@/hooks/useConfig";
 import { useExecStream } from "@/hooks/useExecStream";
-
-const EXAMPLES = [
-  "Explain what this project does",
-  "List files in the current directory",
-  "Find all TODO comments in the codebase",
-  "Write a unit test for the main module",
-];
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export function EmptyState() {
   const { prefs } = useConfig();
   const { run } = useExecStream();
+  const { t } = useLanguage();
+  const examples = [t("empty.example1"), t("empty.example2"), t("empty.example3"), t("empty.example4")];
 
   const sendExample = (prompt: string) => {
     if (!prefs?.cwd) return;
@@ -27,8 +23,10 @@ export function EmptyState() {
       prompt,
       cwd: prefs.cwd,
       model: prefs.model,
+      effort: prefs.effort,
       sandbox: prefs.sandbox,
       approvalPolicy: prefs.approvalPolicy,
+      collaborationMode: prefs.collaborationMode ?? "default",
       skipGitRepoCheck: true,
     });
   };
@@ -43,19 +41,19 @@ export function EmptyState() {
         Codex Web UI
       </h1>
       <p className="mb-1 text-base text-[hsl(var(--muted-foreground))]">
-        A local interface for the Codex CLI agent.
+        {t("empty.description")}
       </p>
       <p className="mb-8 font-mono text-sm text-[hsl(var(--muted-foreground))]">
-        Streaming · Session replay · File diffs · Config panel
+        {t("empty.features")}
       </p>
 
       {!prefs?.cwd ? (
         <div className="rounded-md border border-[hsl(var(--accent)/0.3)] bg-[hsl(var(--accent)/0.05)] px-4 py-3 text-sm text-[hsl(var(--accent))]">
-          Set a working directory in the config panel below to begin.
+          {t("empty.setCwd")}
         </div>
       ) : (
         <div className="w-full max-w-md space-y-1.5">
-          {EXAMPLES.map((ex) => (
+          {examples.map((ex) => (
             <button
               key={ex}
               onClick={() => sendExample(ex)}

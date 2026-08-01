@@ -16,14 +16,16 @@ interface Props {
   active: boolean;
   loading: boolean;
   onClick: () => void;
+  /** 项目组内会话缩进；非项目对话顶层列表不缩进 */
+  indented?: boolean;
 }
 
-export function SessionListItem({ session, active, loading, onClick }: Props) {
+export function SessionListItem({ session, active, loading, onClick, indented = true }: Props) {
   return (
     <li>
       <button
         onClick={onClick}
-        className={`group flex w-full items-start gap-2 pl-8 pr-3 py-2 text-left transition-colors focus-ring ${
+        className={`group flex w-full items-start gap-2 py-2 pr-3 text-left transition-colors focus-ring ${indented ? "pl-8" : "pl-3"} ${
           active
             ? "bg-[hsl(var(--primary)/0.08)] border-l-2 border-[hsl(var(--primary))]"
             : "hover:bg-[hsl(var(--overlay)/0.03)] border-l-2 border-transparent"

@@ -27,6 +27,8 @@ export interface ExecRequest {
   model?: string;
   /** 推理努力级别（minimal/low/medium/high/xhigh），可选 */
   effort?: string;
+  /** 协作模式；plan 模式允许 Codex 在 turn 中发起结构化提问。 */
+  collaborationMode?: "default" | "plan";
   /** sandbox 模式 */
   sandbox: SandboxMode;
   /** 审批策略 */
@@ -78,6 +80,27 @@ export interface RateLimits {
   planType?: string;
   /** 是否已达到速率限制 */
   rateLimitReachedType?: string | null;
+}
+
+/** rollout token_count 事件中的权威用量快照。 */
+export interface UsageSnapshot {
+  /** 会话截至当前的累计用量。 */
+  totalUsage?: Usage;
+  /** 最近一次模型调用的用量。input_tokens 即当前上下文占用。 */
+  lastUsage?: Usage;
+  /** 当前上下文占用；不再额外叠加 cached_input_tokens。 */
+  contextTokens?: number;
+  /** Codex 实际报告的模型上下文窗口。 */
+  contextWindow?: number;
+  rateLimits?: RateLimits;
+  /** 对应 rollout 行时间。 */
+  updatedAt?: string;
+}
+
+/** GET /api/sessions/[id]/usage 响应。 */
+export interface UsageSnapshotResponse {
+  sessionId: string;
+  snapshot: UsageSnapshot;
 }
 
 /** agent_message item */
@@ -203,6 +226,39 @@ export interface UserMessageItem {
   id: string;
   type: "user_message";
   text: string;
+  /** Browser-comment screenshots or other images attached to the user turn. */
+  images?: string[];
+  /** Compact metadata for files explicitly attached to the user turn. */
+  attachments?: Array<{ name: string; path: string }>;
+}
+
+export interface UserInputOption {
+  label: string;
+  description: string;
+}
+
+export interface UserInputQuestion {
+  id: string;
+  header: string;
+  question: string;
+  isOther: boolean;
+  isSecret: boolean;
+  options: UserInputOption[] | null;
+}
+
+/** Codex 在当前 turn 中暂停并等待用户回答的结构化问题。 */
+export interface UserInputRequestItem {
+  id: string;
+  type: "user_input_request";
+  interactionId: string;
+  questions: UserInputQuestion[];
+  autoResolutionMs: number | null;
+}
+
+/** POST /api/exec/respond 请求体。 */
+export interface UserInputResponseRequest {
+  interactionId: string;
+  answers: Record<string, string[] | string>;
 }
 
 /** error item */
@@ -230,6 +286,7 @@ export type ResponseItem =
   | WebSearchItem
   | PlanUpdateItem
   | UserMessageItem
+  | UserInputRequestItem
   | ErrorItem;
 
 /** item.type 字面量联合，用于运行时分发 */
@@ -365,11 +422,18 @@ export interface RateLimitsUpdatedSseEvent {
   rateLimits: RateLimits;
 }
 
+/** token 用量、上下文窗口与额度限制的权威快照。 */
+export interface UsageUpdatedSseEvent {
+  type: "usage.updated";
+  snapshot: UsageSnapshot;
+}
+
 /** 统一 SSE 事件联合：前端 reducer 只处理这些事件 */
 export type SseEvent =
   | CodexEvent
   | SessionMetaSseEvent
-  | RateLimitsUpdatedSseEvent;
+  | RateLimitsUpdatedSseEvent
+  | UsageUpdatedSseEvent;
 
 // ---------------------------------------------------------------------------
 // 配置

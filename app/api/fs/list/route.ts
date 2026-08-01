@@ -6,7 +6,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import type { FsListResponse } from "@/types/api";
 

@@ -10,6 +10,7 @@
 
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
+import { Readable } from "node:stream";
 import { Decompress } from "fzstd";
 import type { RolloutLine } from "./types";
 import { isCompressed } from "./paths";
@@ -136,7 +137,6 @@ export async function readLinesUntil(
  * fzstd 的 Decompress 通过 ondata 回调输出解压数据，final=true 表示结束。
  */
 function createZstdDecompressStream(filePath: string): NodeJS.ReadableStream {
-  const { Readable } = require("node:stream") as typeof import("node:stream");
   const decoder = new Decompress();
 
   const out = new Readable({

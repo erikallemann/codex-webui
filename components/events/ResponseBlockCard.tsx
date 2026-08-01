@@ -301,7 +301,7 @@ export function ResponseBlockCard({
                 {hasReasoning && (
                   <div className="ml-1 border-l-2 border-[hsl(var(--overlay)/0.1)] pl-3 py-1 text-sm text-[hsl(var(--muted-foreground))] leading-7">
                     {reasoningText ? (
-                      <Markdown className="[--tw-prose-body:theme(colors.muted-foreground)] prose-headings:text-[hsl(var(--muted-foreground))] prose-code:text-[hsl(var(--muted-foreground))] prose-p:my-1.5 prose-p:leading-7">
+                      <Markdown className="[--tw-prose-body:hsl(var(--muted-foreground))] prose-headings:text-[hsl(var(--muted-foreground))] prose-code:text-[hsl(var(--muted-foreground))] prose-p:my-1.5 prose-p:leading-7">
                         {reasoningText}
                       </Markdown>
                     ) : (

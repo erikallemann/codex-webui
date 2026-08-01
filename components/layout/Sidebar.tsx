@@ -11,9 +11,12 @@ import { SessionList } from "@/components/sessions/SessionList";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { useActiveSession } from "@/stores/active-session";
 import { Plus, Terminal } from "lucide-react";
+import { LanguageToggle } from "@/components/i18n/LanguageToggle";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export function Sidebar() {
   const { dispatch } = useActiveSession();
+  const { t } = useLanguage();
 
   const newSession = () => {
     dispatch({ type: "RESET" });
@@ -32,13 +35,14 @@ export function Sidebar() {
         </div>
         <div className="flex items-center gap-1.5">
           <ThemeToggle />
+          <LanguageToggle />
           <button
             onClick={newSession}
             className="inline-flex items-center gap-1 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--overlay)/0.05)] px-2 py-1 text-xs font-medium text-foreground/80 hover:bg-[hsl(var(--overlay)/0.1)] hover:text-foreground transition-colors focus-ring"
-            title="New session"
+            title={t("sidebar.newSession")}
           >
             <Plus className="h-3 w-3" />
-            New
+            {t("sidebar.new")}
           </button>
         </div>
       </div>

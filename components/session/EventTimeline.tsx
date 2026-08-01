@@ -199,8 +199,8 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
         continue;
       }
 
-      // error：flush + 独立输出
-      if (rawType === "error") {
+      // error / 结构化提问：flush + 独立输出。提问必须在 turn 未结束时立即可见。
+      if (rawType === "error" || rawType === "user_input_request") {
         flushBlock();
         result.push({ kind: "item", id: e.id, item: e.item, timestamp: e.timestamp, showHeader: false });
         continue;
@@ -266,6 +266,8 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       switch (type) {
         case "user_message":
           return 60;
+        case "user_input_request":
+          return 260;
         case "agent_message":
           return 120; // markdown 内容高度变化大，用较大估算
         case "error":

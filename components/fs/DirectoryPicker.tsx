@@ -8,7 +8,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { FsListResponse } from "@/types/api";
-import { X, Folder, ChevronUp, ArrowLeft, Check } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { X, Folder, ArrowLeft, Check } from "lucide-react";
 
 interface Props {
   current?: string;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function DirectoryPicker({ current, onSelect, onClose }: Props) {
+  const { t } = useLanguage();
   const [path, setPath] = useState(current || "");
   const [data, setData] = useState<FsListResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
         <div className="flex items-center justify-between border-b border-[hsl(var(--overlay)/0.05)] px-4 py-3">
           <div className="flex items-center gap-2">
             <Folder className="h-4 w-4 text-[hsl(var(--accent))]" />
-            <span className="font-mono text-sm">Select working directory</span>
+            <span className="font-mono text-sm">{t("directory.title")}</span>
           </div>
           <button
             onClick={onClose}
@@ -80,7 +82,7 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
             onClick={() => data?.parent && load(data.parent)}
             disabled={!data?.parent}
             className="rounded-md p-1 text-[hsl(var(--muted-foreground))] hover:text-foreground hover:bg-[hsl(var(--overlay)/0.05)] disabled:opacity-30 transition-colors focus-ring"
-            title="Parent"
+            title={t("directory.parent")}
           >
             <ArrowLeft className="h-3.5 w-3.5" />
           </button>
@@ -91,13 +93,13 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
               if (e.key === "Enter") load(path);
             }}
             className="flex-1 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 font-mono text-xs text-foreground/80 outline-none focus:border-[hsl(var(--primary)/0.4)]"
-            placeholder="Enter path…"
+            placeholder={t("directory.path")}
           />
           <button
             onClick={() => load(path)}
             className="rounded-md border border-[hsl(var(--overlay)/0.1)] px-2 py-1 font-mono text-[10px] text-foreground/70 hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
           >
-            go
+            {t("directory.go")}
           </button>
         </div>
 
@@ -105,11 +107,11 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto">
           {loading ? (
             <div className="px-4 py-6 text-center font-mono text-xs text-[hsl(var(--muted-foreground))]">
-              loading…
+              {t("directory.loading")}
             </div>
           ) : data?.entries.length === 0 ? (
             <div className="px-4 py-6 text-center font-mono text-xs text-[hsl(var(--muted-foreground))]">
-              empty directory
+              {t("directory.empty")}
             </div>
           ) : (
             <ul className="py-1">
@@ -143,7 +145,7 @@ export function DirectoryPicker({ current, onSelect, onClose }: Props) {
             className="inline-flex items-center gap-1.5 rounded-md border border-[hsl(var(--primary)/0.4)] bg-[hsl(var(--primary)/0.1)] px-3 py-1.5 font-mono text-xs text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary)/0.2)] disabled:opacity-30 transition-colors focus-ring"
           >
             <Check className="h-3 w-3" />
-            Select
+            {t("directory.select")}
           </button>
         </div>
       </div>

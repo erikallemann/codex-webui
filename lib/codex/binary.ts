@@ -21,7 +21,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -62,7 +62,6 @@ function npmGlobalRoot(): string | null {
 /** 同步 spawn 并返回 stdout（用于一次性命令如 npm root -g） */
 function spawnSyncSafe(cmd: string, args: string[]): string | null {
   try {
-    const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
     // Windows 上 npm 是 .cmd 垫片，需要 shell:true
     const result = spawnSync(cmd, args, {
       encoding: "utf8",

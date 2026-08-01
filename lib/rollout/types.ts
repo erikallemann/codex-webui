@@ -167,10 +167,16 @@ export interface ReplayRateLimitsEvent {
   rateLimits: import("@/types/api").RateLimits;
 }
 
+export interface ReplayUsageUpdatedEvent {
+  type: "usage.updated";
+  snapshot: import("@/types/api").UsageSnapshot;
+}
+
 /** 回放产出的事件联合 */
 export type ReplayEvent =
   | ReplaySessionMetaEvent
   | ReplayTurnStartedEvent
   | ReplayItemEvent
   | ReplayTurnCompletedEvent
-  | ReplayRateLimitsEvent;
+  | ReplayRateLimitsEvent
+  | ReplayUsageUpdatedEvent;

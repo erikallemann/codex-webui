@@ -15,16 +15,12 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Sun, Moon, Monitor, ChevronDown } from "lucide-react";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 type ThemeOption = "light" | "dark" | "system";
 
-const OPTIONS: { value: ThemeOption; label: string; icon: typeof Sun }[] = [
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-  { value: "system", label: "System", icon: Monitor },
-];
-
 export function ThemeToggle() {
+  const { t } = useLanguage();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [open, setOpen] = useState(false);
   // mounted：避免 SSR 时渲染与主题相关的图标（防止 hydration mismatch）
@@ -40,6 +36,11 @@ export function ThemeToggle() {
       : Moon;
 
   const CurrentIcon = currentIcon;
+  const options: { value: ThemeOption; label: string; icon: typeof Sun }[] = [
+    { value: "light", label: t("theme.light"), icon: Sun },
+    { value: "dark", label: t("theme.dark"), icon: Moon },
+    { value: "system", label: t("theme.system"), icon: Monitor },
+  ];
 
   // 点击外部关闭
   useEffect(() => {
@@ -54,8 +55,8 @@ export function ThemeToggle() {
       <button
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--overlay)/0.05)] px-1.5 py-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--overlay)/0.1)] hover:text-foreground transition-colors focus-ring"
-        title="Theme"
-        aria-label="Toggle theme"
+        title={t("theme.label")}
+        aria-label={t("theme.toggle")}
       >
         <CurrentIcon className="h-3.5 w-3.5" />
         <ChevronDown className="h-3 w-3 opacity-60" />
@@ -63,7 +64,7 @@ export function ThemeToggle() {
 
       {open && (
         <div className="absolute right-0 top-full mt-1 z-50 w-32 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface))] py-1 shadow-lg animate-fade-in">
-          {OPTIONS.map(({ value, label, icon: Icon }) => {
+          {options.map(({ value, label, icon: Icon }) => {
             const active = mounted && theme === value;
             return (
               <button

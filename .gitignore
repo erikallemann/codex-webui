@@ -39,6 +39,7 @@ pnpm-debug.log*
 **/.tmp/
 **/.temp/
 **/.cache/
+/.pnpm-store/
 /.turbo/
 /.vite/
 /.parcel-cache/

@@ -90,7 +90,7 @@ export function ReasoningCard({ item, timestamp }: Props) {
       {expanded && (
         <div className="mt-2 ml-5 border-l-2 border-[hsl(var(--overlay)/0.08)] pl-3 text-sm text-[hsl(var(--muted-foreground))] leading-7">
           {text ? (
-            <Markdown className="[--tw-prose-body:theme(colors.muted-foreground)] prose-headings:text-[hsl(var(--muted-foreground))] prose-code:text-[hsl(var(--muted-foreground))] prose-p:my-1.5 prose-p:leading-7">
+            <Markdown className="[--tw-prose-body:hsl(var(--muted-foreground))] prose-headings:text-[hsl(var(--muted-foreground))] prose-code:text-[hsl(var(--muted-foreground))] prose-p:my-1.5 prose-p:leading-7">
               {text}
             </Markdown>
           ) : (

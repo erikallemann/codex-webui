@@ -31,6 +31,7 @@ export interface SessionPrefs {
   model?: string;
   /** 推理努力级别（minimal/low/medium/high/xhigh/max/ultra） */
   effort?: string;
+  collaborationMode?: "default" | "plan";
   sandbox: SandboxMode;
   approvalPolicy: ApprovalPolicy;
   cwd: string;
@@ -125,6 +126,7 @@ export function useConfig() {
           version: CURRENT_PREFS_VERSION,
           model: config.defaults.model,
           effort: config.defaults.effort,
+          collaborationMode: "default",
           sandbox: config.defaults.sandbox,
           approvalPolicy: config.defaults.approvalPolicy,
           cwd: "",
@@ -186,6 +188,7 @@ export function useConfig() {
               version: CURRENT_PREFS_VERSION,
               model: config?.defaults.model,
               effort: config?.defaults.effort,
+              collaborationMode: "default",
               sandbox: config?.defaults.sandbox ?? "read-only",
               approvalPolicy: config?.defaults.approvalPolicy ?? "never",
               cwd: "",

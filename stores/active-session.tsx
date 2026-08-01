@@ -20,7 +20,6 @@ import {
   useContext,
   useReducer,
   useCallback,
-  useRef,
   type ReactNode,
 } from "react";
 import type {
@@ -76,6 +75,12 @@ export interface ActiveSessionState {
   totalUsage: Usage;
   /** codex 速率限制信息（来自 token_count.rate_limits） */
   rateLimits: RateLimits | null;
+  /** 最近一次模型调用的输入 token，即当前上下文占用。 */
+  contextTokens: number | null;
+  /** rollout 中 Codex 实际报告的上下文窗口。 */
+  contextWindow: number | null;
+  /** 是否已收到权威 token_count 快照。 */
+  hasUsageSnapshot: boolean;
   error: string | null;
   /** 是否正在回放历史会话 */
   isReplay: boolean;
@@ -105,6 +110,9 @@ const initialState: ActiveSessionState = {
   timeline: [],
   totalUsage: EMPTY_USAGE,
   rateLimits: null,
+  contextTokens: null,
+  contextWindow: null,
+  hasUsageSnapshot: false,
   error: null,
   isReplay: false,
   resumeSessionId: null,
@@ -209,7 +217,12 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
       return {
         ...state,
         timeline,
-        totalUsage: addUsage(state.totalUsage, event.usage),
+        totalUsage: state.hasUsageSnapshot
+          ? state.totalUsage
+          : addUsage(state.totalUsage, event.usage),
+        contextTokens: state.hasUsageSnapshot
+          ? state.contextTokens
+          : event.usage.input_tokens,
         status: "completed",
       };
     }
@@ -240,6 +253,19 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
       return {
         ...state,
         rateLimits: event.rateLimits,
+      };
+
+    case "usage.updated":
+      return {
+        ...state,
+        totalUsage: event.snapshot.totalUsage ?? state.totalUsage,
+        contextTokens:
+          event.snapshot.contextTokens ??
+          event.snapshot.lastUsage?.input_tokens ??
+          state.contextTokens,
+        contextWindow: event.snapshot.contextWindow ?? state.contextWindow,
+        rateLimits: event.snapshot.rateLimits ?? state.rateLimits,
+        hasUsageSnapshot: true,
       };
 
     case "error":

@@ -22,7 +22,6 @@ interface Props {
 
 /** 剥离 ANSI 颜色/控制码，便于在 <pre> 中纯文本展示 */
 function stripAnsi(text: string): string {
-  // eslint-disable-next-line no-control-regex
   return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
 }
 

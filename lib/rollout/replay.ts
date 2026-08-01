@@ -5,7 +5,7 @@
  * - session_meta              → session.meta
  * - event_msg/task_started    → turn.started（携带 started_at）
  * - event_msg/task_complete   → turn.completed（usage 从缓存的 token_count 提取，携带时间戳）
- * - event_msg/token_count     → 缓存 usage + rate_limits，产出 rate_limits.updated 事件
+ * - event_msg/token_count     → usage.updated（累计/最近用量、上下文窗口、额度）
  * - event_msg/user_message    → item.completed { item: { type: 'user_message', text } }
  * - event_msg/agent_message   → item.completed { item: { type: 'agent_message', text } }
  * - response_item/message(role=user)      → item.completed { item: { type: 'user_message', text } }
@@ -15,13 +15,23 @@
  * - world_state / turn_context            → 跳过
  *
  * 这样前端 reducer 只需处理 session.meta / turn.started / turn.completed /
- * item.completed / rate_limits.updated / error，实时与回放完全统一。
+ * item.completed / usage.updated / error，实时与回放完全统一。
  */
 
-import type { ResponseItem, Usage, AgentMessageItem, UserMessageItem, ReasoningItem, SessionMeta, RateLimits, FileChangeItem, CommandExecutionItem } from "@/types/api";
+import type { ResponseItem, Usage, AgentMessageItem, UserMessageItem, ReasoningItem, SessionMeta, FileChangeItem, CommandExecutionItem } from "@/types/api";
 import { readRolloutLines } from "./reader";
 import type { RolloutLine, ReplayEvent, EventMsgLine, ResponseItemLine } from "./types";
 import { extractReasoningSummaryText } from "@/lib/utils/format";
+import {
+  emptyUsage,
+  extractUsageSnapshotFromTokenCount,
+  subtractUsage,
+} from "@/lib/codex/usage-snapshot";
+import {
+  extractUserMessageAttachments,
+  filterDisplayableImageUrls,
+  formatUserMessageForDisplay,
+} from "@/lib/codex/user-message";
 
 /**
  * 回放 rollout 文件为事件流。
@@ -32,9 +42,10 @@ export async function* replayRollout(
   filePath: string,
   signal?: AbortSignal,
 ): AsyncIterable<ReplayEvent> {
-  // 缓存当前 turn 的 usage 与 rate_limits（token_count 先于 task_complete 到达）
+  // 缓存当前 turn 的 usage（token_count 先于 task_complete 到达）
   let pendingUsage: Usage | null = null;
-  let pendingRateLimits: RateLimits | null = null;
+  let latestTotalUsage: Usage | null = null;
+  let completedTotalUsage: Usage = emptyUsage();
   // 缓存当前 turn 的开始时间（task_started 设定，task_complete 时消费）
   let pendingStartedAt: number | undefined;
   let itemIdCounter = 0;
@@ -66,9 +77,13 @@ export async function* replayRollout(
       setUsage: (u) => {
         pendingUsage = u;
       },
-      getRateLimits: () => pendingRateLimits,
-      setRateLimits: (rl) => {
-        pendingRateLimits = rl;
+      getLatestTotalUsage: () => latestTotalUsage,
+      setLatestTotalUsage: (usage) => {
+        latestTotalUsage = usage;
+      },
+      getCompletedTotalUsage: () => completedTotalUsage,
+      setCompletedTotalUsage: (usage) => {
+        completedTotalUsage = usage;
       },
       getStartedAt: () => pendingStartedAt,
       setStartedAt: (ts) => {
@@ -77,7 +92,6 @@ export async function* replayRollout(
       clearTurn: () => {
         pendingUsage = null;
         pendingStartedAt = undefined;
-        // rate_limits 不清除：它代表全局配额状态，持续到下次更新
         // 去重 Set 按 turn 清空：event_msg/agent_message 与 response_item/message
         // 只在同一 turn 内描述同一条消息，跨 turn 去重会错误丢弃用户重复输入
         // （如用户在多个 turn 都说"总结结果"，第二次会被误删）
@@ -109,8 +123,10 @@ export async function* replayRollout(
 interface ReplayContext {
   getUsage: () => Usage | null;
   setUsage: (u: Usage | null) => void;
-  getRateLimits: () => RateLimits | null;
-  setRateLimits: (rl: RateLimits | null) => void;
+  getLatestTotalUsage: () => Usage | null;
+  setLatestTotalUsage: (usage: Usage | null) => void;
+  getCompletedTotalUsage: () => Usage;
+  setCompletedTotalUsage: (usage: Usage) => void;
   getStartedAt: () => number | undefined;
   setStartedAt: (ts: number | undefined) => void;
   clearTurn: () => void;
@@ -121,7 +137,7 @@ interface ReplayContext {
 }
 
 /**
- * 将单行 rollout 映射为回放事件数组（一行可能产出多个事件，如 token_count 同时产出 rate_limits.updated）。
+ * 将单行 rollout 映射为回放事件数组。
  */
 function mapLineToEvents(
   line: RolloutLine,
@@ -172,28 +188,29 @@ function mapEventMsg(
       const completedAt = typeof p.completed_at === "number" ? p.completed_at : undefined;
       const durationMs = typeof p.duration_ms === "number" ? p.duration_ms : undefined;
 
+      const latestTotal = ctx.getLatestTotalUsage();
+      const turnUsage = latestTotal
+        ? subtractUsage(latestTotal, ctx.getCompletedTotalUsage())
+        : ctx.getUsage() ?? emptyUsage();
       events.push({
         type: "turn.completed",
-        usage: ctx.getUsage() ?? emptyUsage(),
+        usage: turnUsage,
         startedAt,
         completedAt,
         durationMs,
       });
+      if (latestTotal) ctx.setCompletedTotalUsage(latestTotal);
       // 清理当前 turn 缓存
       ctx.clearTurn();
       break;
     }
 
     case "token_count": {
-      // 提取 usage（优先 info.last_token_usage）
-      const u = extractUsageFromTokenCount(p);
-      if (u) ctx.setUsage(u);
-
-      // 提取 rate_limits
-      const rl = extractRateLimitsFromTokenCount(p);
-      if (rl) {
-        ctx.setRateLimits(rl);
-        events.push({ type: "rate_limits.updated", rateLimits: rl });
+      const snapshot = extractUsageSnapshotFromTokenCount(p, lineTimestamp);
+      if (snapshot) {
+        if (snapshot.lastUsage) ctx.setUsage(snapshot.lastUsage);
+        if (snapshot.totalUsage) ctx.setLatestTotalUsage(snapshot.totalUsage);
+        events.push({ type: "usage.updated", snapshot });
       }
       break;
     }
@@ -201,9 +218,18 @@ function mapEventMsg(
     case "user_message": {
       const text = String((p as { message?: string; text?: string }).message ||
         (p as { text?: string }).text || "");
+      const rawImages = (p as { images?: unknown }).images;
       // 跳过系统注入的上下文（与 response_item/message(role=user) 一致）
       if (isSystemInjectedContext(text)) break;
-      const item: UserMessageItem = { id: genId(), type: "user_message", text };
+      const item: UserMessageItem = {
+        id: genId(),
+        type: "user_message",
+        text: formatUserMessageForDisplay(text),
+        images: filterDisplayableImageUrls(
+          Array.isArray(rawImages) ? rawImages : [],
+        ),
+        attachments: extractUserMessageAttachments(text),
+      };
       events.push({ type: "item.completed", item, timestamp: lineTimestamp });
       break;
     }
@@ -281,7 +307,7 @@ function mapResponseItem(
 ): ReplayEvent | null {
   const item = line.payload as ResponseItem & {
     role?: string;
-    content?: Array<{ type?: string; text?: string }>;
+    content?: Array<{ type?: string; text?: string; image_url?: string }>;
   };
 
   // message 类型按 role 分发
@@ -299,9 +325,20 @@ function mapResponseItem(
       if (isSystemInjectedContext(text)) {
         return null;
       }
+      const images = filterDisplayableImageUrls(
+        (item.content || [])
+          .filter((content) => content.type === "input_image")
+          .map((content) => content.image_url),
+      );
       return {
         type: "item.completed",
-        item: { id: item.id || genId(), type: "user_message", text },
+        item: {
+          id: item.id || genId(),
+          type: "user_message",
+          text: formatUserMessageForDisplay(text),
+          images,
+          attachments: extractUserMessageAttachments(text),
+        },
         timestamp: lineTimestamp,
       };
     }
@@ -327,6 +364,7 @@ function mapResponseItem(
       text?: string;
       message?: string;
       content?: Array<{ type?: string; text?: string }>;
+      images?: unknown[];
     };
     // 若已有非空 text，直接用；否则从 content / message 提取
     if (typeof it.text !== "string" || it.text === "") {
@@ -338,6 +376,12 @@ function mapResponseItem(
         it.message ||
         "";
       it.text = extracted;
+    }
+    if (rawType === "user_message") {
+      const rawText = it.text;
+      it.text = formatUserMessageForDisplay(rawText);
+      (it as UserMessageItem).images = filterDisplayableImageUrls(it.images || []);
+      (it as UserMessageItem).attachments = extractUserMessageAttachments(rawText);
     }
   }
 
@@ -438,108 +482,6 @@ function extractShellCommand(input: string): string | null {
       .replace(/\\n/g, "\n")
       .replace(/\\t/g, "\t");
   }
-}
-
-/**
- * 从 token_count payload 提取 usage。
- *
- * 实际格式：{ info: { last_token_usage: { input_tokens, ... }, total_token_usage: {...} } }
- * 兼容旧格式：{ usage: { input_tokens, ... } } 或顶层 { input_tokens, ... }
- *
- * 优先使用 last_token_usage（单 turn 增量），用于累加 totalUsage。
- */
-function extractUsageFromTokenCount(p: Record<string, unknown>): Usage | null {
-  const tryExtract = (u: Record<string, unknown> | undefined): Usage | null => {
-    if (!u || typeof u !== "object") return null;
-    const has = (k: string) => typeof u[k] === "number";
-    if (!has("input_tokens") && !has("output_tokens")) return null;
-    return {
-      input_tokens: num(u.input_tokens),
-      cached_input_tokens: num(u.cached_input_tokens),
-      cache_write_input_tokens: num(u.cache_write_input_tokens),
-      output_tokens: num(u.output_tokens),
-      reasoning_output_tokens: num(u.reasoning_output_tokens),
-    };
-  };
-
-  // 1. info.last_token_usage（实际 codex 格式，优先）
-  const info = p.info as Record<string, unknown> | undefined;
-  if (info) {
-    const lastUsage = tryExtract(info.last_token_usage as Record<string, unknown>);
-    if (lastUsage) return lastUsage;
-    // 退而求其次：total_token_usage（但这是累计值，仅在无 last 时用）
-    // 注意：使用 total 会导致累加错误，但比空值好（前端可后续覆盖）
-    // 此处不使用 total，保持 null 让 turn.completed 用 emptyUsage
-  }
-
-  // 2. p.usage（旧格式兼容）
-  const directUsage = tryExtract(p.usage as Record<string, unknown>);
-  if (directUsage) return directUsage;
-
-  // 3. 顶层字段（其他兼容）
-  return tryExtract(p);
-}
-
-/** 从 token_count payload 提取 rate_limits */
-function extractRateLimitsFromTokenCount(p: Record<string, unknown>): RateLimits | null {
-  const rl = p.rate_limits as Record<string, unknown> | undefined;
-  if (!rl || typeof rl !== "object") return null;
-
-  const primary = rl.primary as Record<string, unknown> | null | undefined;
-  const secondary = rl.secondary as Record<string, unknown> | null | undefined;
-  const credits = rl.credits as Record<string, unknown> | undefined;
-
-  const result: RateLimits = {};
-
-  if (typeof rl.limit_id === "string") result.limitId = rl.limit_id;
-
-  if (primary && typeof primary === "object") {
-    result.primary = {
-      usedPercent: num(primary.used_percent),
-      ...(typeof primary.window_minutes === "number" ? { windowMinutes: primary.window_minutes } : {}),
-      ...(typeof primary.resets_at === "number" ? { resetsAt: primary.resets_at } : {}),
-    };
-  }
-
-  if (secondary && typeof secondary === "object") {
-    result.secondary = {
-      usedPercent: num(secondary.used_percent),
-      ...(typeof secondary.window_minutes === "number" ? { windowMinutes: secondary.window_minutes } : {}),
-      ...(typeof secondary.resets_at === "number" ? { resetsAt: secondary.resets_at } : {}),
-    };
-  }
-
-  if (credits && typeof credits === "object") {
-    result.credits = {
-      hasCredits: Boolean(credits.has_credits),
-      unlimited: Boolean(credits.unlimited),
-      ...(typeof credits.balance === "string" ? { balance: credits.balance } : {}),
-    };
-  }
-
-  if (typeof rl.plan_type === "string") result.planType = rl.plan_type;
-  if (rl.rate_limit_reached_type === null || typeof rl.rate_limit_reached_type === "string") {
-    result.rateLimitReachedType = rl.rate_limit_reached_type as string | null;
-  }
-
-  // 至少要有 primary 或 planType 才返回
-  if (!result.primary && !result.planType) return null;
-
-  return result;
-}
-
-function num(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
-}
-
-function emptyUsage(): Usage {
-  return {
-    input_tokens: 0,
-    cached_input_tokens: 0,
-    cache_write_input_tokens: 0,
-    output_tokens: 0,
-    reasoning_output_tokens: 0,
-  };
 }
 
 /**

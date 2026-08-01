@@ -3,8 +3,8 @@
 /**
  * ConfigPanel — 配置面板（cwd/model/effort/sandbox/approval）。
  *
- * 横排展示在发送框下方，始终展开，偏好持久化到 localStorage（通过 useConfig）。
- * 窄屏自动换行：cwd 弹性占满剩余空间，其余 Select 固定宽度。
+ * 紧凑工具栏展示在发送框下方，偏好持久化到 localStorage（通过 useConfig）。
+ * 每个控件使用一致的标签层级和弹性基宽，窄屏时按字段自然换行。
  */
 
 import { useState } from "react";
@@ -13,10 +13,12 @@ import { DirectoryPicker } from "@/components/fs/DirectoryPicker";
 import { Select } from "@/components/ui/Select";
 import { FolderOpen } from "lucide-react";
 import type { SandboxMode, ApprovalPolicy } from "@/types/api";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export function ConfigPanel() {
   const { config, prefs, updatePrefs } = useConfig();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const { t } = useLanguage();
 
   if (!config || !prefs) {
     return (
@@ -27,15 +29,19 @@ export function ConfigPanel() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 text-xs">
-      {/* cwd — 弹性占满剩余空间，窄屏时保证最小宽度 */}
-      <div className="flex min-w-[200px] flex-1 items-center gap-1.5">
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+    <div
+      className="flex flex-wrap items-end gap-2 px-4 py-2.5 text-xs"
+      data-config-panel="true"
+      aria-label={t("config.label")}
+    >
+      {/* cwd — 优先占据剩余空间 */}
+      <div className="min-w-[220px] flex-[1.6_1_280px]">
+        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]/75">
           cwd
         </span>
         <button
           onClick={() => setPickerOpen(true)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2 py-1 text-left hover:bg-[hsl(var(--overlay)/0.05)] transition-colors focus-ring"
+          className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-lg border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-2.5 text-left transition-colors hover:border-[hsl(var(--primary)/0.25)] hover:bg-[hsl(var(--overlay)/0.05)] focus-ring"
           title={prefs.cwd || "not set"}
         >
           <FolderOpen className="h-3 w-3 shrink-0 text-[hsl(var(--muted-foreground))]" />
@@ -46,11 +52,11 @@ export function ConfigPanel() {
       </div>
 
       {/* model */}
-      <div className="flex items-center gap-1.5">
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+      <div className="min-w-[150px] flex-[1_1_170px]">
+        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]/75">
           model
         </span>
-        <div className="w-44" title={prefs.model ?? ""}>
+        <div title={prefs.model ?? ""}>
           <Select
             value={prefs.model ?? ""}
             options={config.models}
@@ -70,16 +76,17 @@ export function ConfigPanel() {
             }}
             placement="top"
             aria-label="Model"
+            className="h-8 rounded-lg px-2.5"
           />
         </div>
       </div>
 
       {/* effort */}
-      <div className="flex items-center gap-1.5">
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+      <div className="w-28 shrink-0">
+        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]/75">
           effort
         </span>
-        <div className="w-28">
+        <div>
           <Select
             value={prefs.effort ?? ""}
             options={(() => {
@@ -95,32 +102,52 @@ export function ConfigPanel() {
             onChange={(v) => updatePrefs({ effort: v })}
             placement="top"
             aria-label="Reasoning effort"
+            className="h-8 rounded-lg px-2.5"
           />
         </div>
       </div>
 
+      {/* collaboration mode */}
+      <div className="w-28 shrink-0">
+        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]/75">
+          mode
+        </span>
+        <Select
+          value={prefs.collaborationMode ?? "default"}
+          options={[
+            { value: "default", label: "Default", description: t("config.modeDefault") },
+            { value: "plan", label: "Plan", description: t("config.modePlan") },
+          ]}
+          onChange={(value) => updatePrefs({ collaborationMode: value as "default" | "plan" })}
+          placement="top"
+          aria-label="Collaboration mode"
+          className="h-8 rounded-lg px-2.5"
+        />
+      </div>
+
       {/* sandbox */}
-      <div className="flex items-center gap-1.5">
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+      <div className="min-w-[140px] flex-[0.9_1_160px]">
+        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]/75">
           sandbox
         </span>
-        <div className="w-40">
+        <div>
           <Select
             value={prefs.sandbox}
             options={config.sandboxes.map((s) => ({ value: s, label: s }))}
             onChange={(v) => updatePrefs({ sandbox: v as SandboxMode })}
             placement="top"
             aria-label="Sandbox"
+            className="h-8 rounded-lg px-2.5"
           />
         </div>
       </div>
 
       {/* approval */}
-      <div className="flex items-center gap-1.5">
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+      <div className="min-w-[130px] flex-[0.8_1_145px]">
+        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]/75">
           approval
         </span>
-        <div className="w-36">
+        <div>
           <Select
             value={prefs.approvalPolicy}
             options={config.approvals.map((a) => ({ value: a, label: a }))}
@@ -129,6 +156,7 @@ export function ConfigPanel() {
             }
             placement="top"
             aria-label="Approval"
+            className="h-8 rounded-lg px-2.5"
           />
         </div>
       </div>

@@ -19,7 +19,7 @@ import { useExecStream } from "@/hooks/useExecStream";
 import { useConfig } from "@/hooks/useConfig";
 import { useSkills } from "@/hooks/useSkills";
 import { useActiveSession } from "@/stores/active-session";
-import { ArrowUp, Square, CornerDownLeft } from "lucide-react";
+import { ArrowUp, Square, CornerDownLeft, History, Sparkles } from "lucide-react";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { SkillMenu } from "./SkillMenu";
 import {
@@ -27,8 +27,10 @@ import {
   type SlashCommand,
 } from "@/lib/codex/slash-commands";
 import type { SkillInfo } from "@/types/api";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 export function Composer() {
+  const { t } = useLanguage();
   const { prefs } = useConfig();
   const { skills } = useSkills();
   const { run, abort, isRunning } = useExecStream();
@@ -124,6 +126,7 @@ export function Composer() {
       // 本地执行命令
       if (cmd.execute === "local") {
         if (cmd.name === "/clear") {
+          abort();
           dispatch({ type: "RESET" });
           dispatch({ type: "SET_RESUME", sessionId: null });
         }
@@ -143,7 +146,7 @@ export function Composer() {
         }
       });
     },
-    [dispatch],
+    [abort, dispatch],
   );
 
   /** 选中某个 skill 后的处理：将末尾的 @<filter> 替换为 @<skill-name> */
@@ -175,6 +178,7 @@ export function Composer() {
       effort: prefs.effort,
       sandbox: prefs.sandbox,
       approvalPolicy: prefs.approvalPolicy,
+      collaborationMode: prefs.collaborationMode ?? "default",
       skipGitRepoCheck: true,
       resumeSessionId: resumeId ?? undefined,
     });
@@ -324,10 +328,10 @@ export function Composer() {
               rows={1}
               placeholder={
                 disabled
-                  ? "Set a working directory to begin…"
+                  ? t("composer.setCwd")
                   : resumeId
-                    ? "Continue the session…"
-                    : "Ask codex anything…  (输入 / 查看命令，@ 引用 skill)"
+                    ? t("composer.continue")
+                    : t("composer.ask")
               }
               className="flex-1 resize-none bg-transparent text-base text-foreground placeholder:text-[hsl(var(--muted-foreground))] outline-none disabled:cursor-not-allowed"
               style={{ minHeight: "28px", maxHeight: "200px" }}
@@ -337,7 +341,7 @@ export function Composer() {
               <button
                 onClick={abort}
                 className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[hsl(var(--danger)/0.4)] bg-[hsl(var(--danger)/0.1)] text-[hsl(var(--danger))] hover:bg-[hsl(var(--danger)/0.2)] transition-colors focus-ring"
-                title="Stop"
+                title={t("common.stop")}
               >
                 <Square className="h-3.5 w-3.5 fill-current" />
               </button>
@@ -354,16 +358,34 @@ export function Composer() {
           </div>
         </div>
 
-        <div className="mt-1.5 flex items-center justify-between px-1">
-          <span className="font-mono text-[11px] text-[hsl(var(--muted-foreground))]">
-            {resumeId ? `resume · ${resumeId.slice(0, 8)}` : "new session"}
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-0.5">
+          <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-[hsl(var(--overlay)/0.05)] px-2 font-mono text-[10px] text-[hsl(var(--muted-foreground))]">
+            {resumeId ? (
+              <>
+                <History className="h-3 w-3 text-[hsl(var(--primary))]" />
+                {t("composer.continuing")}
+                <span className="text-foreground/65">{resumeId.slice(0, 8)}</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3 w-3 text-[hsl(var(--primary))]" />
+                {t("composer.new")}
+              </>
+            )}
           </span>
-          <span className="flex items-center gap-1 font-mono text-[11px] text-[hsl(var(--muted-foreground))]">
-            <CornerDownLeft className="h-3 w-3" />
-            send
-            <span className="ml-2">⇧↵ newline</span>
-            {slashOpen && <span className="ml-2">↑↓ 选 / Tab 确认</span>}
-            {skillOpen && <span className="ml-2">↑↓ 选 / Tab 确认</span>}
+          <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] text-[hsl(var(--muted-foreground))]">
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-1.5 py-0.5 font-mono text-[9px] text-foreground/70">Enter</kbd>
+              {t("composer.send")}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <kbd className="rounded border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--surface-2))] px-1.5 py-0.5 font-mono text-[9px] text-foreground/70">Shift</kbd>
+              <CornerDownLeft className="h-3 w-3" />
+              {t("composer.newline")}
+            </span>
+            {(slashOpen || skillOpen) && (
+              <span className="font-mono">{t("composer.selectHint")}</span>
+            )}
           </span>
         </div>
       </div>
