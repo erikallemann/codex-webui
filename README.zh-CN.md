@@ -16,7 +16,7 @@
 
 ![Codex Web UI 安全展示界面](./docs/showcase.png)
 
-该图片截取自 `/showcase`：一个完全使用虚构数据的隔离静态页面。它不会读取本地会话、调用 Codex CLI，也不会请求应用 API。
+该图片截取自 `/showcase`：正式版 `AppShell` 与真实 UI 组件运行在隔离的虚构数据层之上。Fixture 包含 3 个临时项目和 3 个非项目会话；它不会读取本地会话、调用 Codex CLI、访问真实文件系统，也不会向后端 API 发送请求。
 
 ## 为什么需要
 

@@ -28,9 +28,11 @@ Useful scripts:
 
 ## Safe showcase page
 
-`/showcase` is a statically rendered, screenshot-safe representation of the main interface. Its sessions, project path, commands, code, diffs, token usage, and timestamps are all fictional and defined directly in `app/showcase/page.tsx`.
+`/showcase` mounts the production `AppShell`, including the real sidebar, session list, top bar, timeline, event cards, composer, directory picker, and config panel. The visual and interaction code is therefore identical to the main application rather than a separately maintained imitation.
 
-The showcase intentionally does not mount the live session store UI, call any `/api/*` route, read `CODEX_HOME`, or invoke Codex CLI. Keep it isolated when updating the design, retain the visible `SYNTHETIC DATA` labels, and never replace its fixtures with copied local session content. The README screenshot is captured at a 1440×900 viewport and stored as `docs/showcase.png`.
+Isolation happens at the data boundary. `ShowcaseEnvironment` installs an in-page fetch adapter before mounting `AppShell`, gives SWR a private cache, nests a fresh `ActiveSessionProvider`, and stores configuration under `codex-webui-showcase-prefs-v3`. Every `/api/*` call made by production hooks is answered from `lib/showcase/fixtures.ts`; unknown API routes and external requests are rejected. The fixture contains three synthetic projects and three standalone conversations, plus virtual config, skills, filesystem, usage, replay streams, and exec responses. It never reads `CODEX_HOME`, local sessions, the real filesystem, or Codex CLI.
+
+Keep all fixture content fictional and never copy local session text or paths into `lib/showcase/fixtures.ts`. Browser QA must assert that no `/api/*` network request leaves the page. The README screenshot is captured at a 1440×900 viewport and stored as `docs/showcase.png`.
 
 ## Architecture overview
 
@@ -60,7 +62,7 @@ Because `exec` is a `POST`, the app cannot use `EventSource`. Instead the server
 app/
   layout.tsx                    RootLayout: ThemeProvider → LanguageProvider → ToastProvider → ActiveSessionProvider
   page.tsx                      Renders <AppShell />
-  showcase/page.tsx             Static synthetic-data UI used for safe README screenshots
+  showcase/page.tsx             Mounts the production AppShell in the isolated showcase environment
   globals.css                   Tailwind + VSCode Dark+/Light+ token colors + KaTeX
   api/
     exec/route.ts               POST → app-server JSON-RPC bridge, SSE stream
@@ -84,6 +86,8 @@ lib/
     interactions.ts             Pending request registry for cross-request answers
   i18n/
     messages.ts                 English/Chinese message catalogs + locale types
+  showcase/
+    fixtures.ts                 Synthetic sessions, events, config, filesystem, and fetch adapter
   rollout/
     paths.ts                    codexHome(), sessions/ + archived_sessions/ layout
     reader.ts                   Read .jsonl + .jsonl.zst (fzstd streaming)
@@ -102,6 +106,7 @@ lib/
     highlight.ts                highlight.js line splitting for diffs
 components/
   layout/   AppShell · Sidebar · TopBar
+  showcase/ ShowcaseEnvironment · showcase mode context
   session/  SessionView · EventTimeline (virtualized) · Composer · EmptyState · ConversationNav · SkillMenu · SlashCommandMenu
   events/   EventCard dispatcher + 10 typed cards + Markdown
   diff/     DiffViewerDialog

@@ -22,6 +22,7 @@ import useSWR from "swr";
 import { useEffect, useCallback, useMemo } from "react";
 import type { ConfigResponse, SandboxMode, ApprovalPolicy } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
+import { useShowcaseMode } from "@/components/showcase/showcase-context";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json()) as Promise<ConfigResponse>;
 
@@ -43,6 +44,8 @@ const PREFS_KEY_V3 = "codex-webui-prefs-v3";
 const PREFS_KEY_V2 = "codex-webui-prefs";
 /** SWR 缓存键（与 localStorage 同步） */
 const PREFS_SWR_KEY = "local:prefs-store-v3";
+const SHOWCASE_PREFS_KEY = "codex-webui-showcase-prefs-v3";
+const SHOWCASE_PREFS_SWR_KEY = "local:showcase-prefs-store-v3";
 /**
  * 当前偏好版本号。
  *
@@ -62,16 +65,19 @@ interface PrefsStore {
   sessions: Record<string, SessionPrefs>;
 }
 
-function readPrefsStore(): PrefsStore | null {
+function readPrefsStore(
+  storageKey = PREFS_KEY_V3,
+  migrateLegacy = true,
+): PrefsStore | null {
   if (typeof window === "undefined") return null;
   try {
     // 优先读 v3
-    const raw = localStorage.getItem(PREFS_KEY_V3);
+    const raw = localStorage.getItem(storageKey);
     if (raw) {
       return JSON.parse(raw) as PrefsStore;
     }
     // 迁移 v2 → v3
-    const oldRaw = localStorage.getItem(PREFS_KEY_V2);
+    const oldRaw = migrateLegacy ? localStorage.getItem(PREFS_KEY_V2) : null;
     if (oldRaw) {
       const oldPrefs = JSON.parse(oldRaw) as SessionPrefs;
       const store: PrefsStore = {
@@ -79,7 +85,7 @@ function readPrefsStore(): PrefsStore | null {
         default: { ...oldPrefs, version: CURRENT_PREFS_VERSION },
         sessions: {},
       };
-      localStorage.setItem(PREFS_KEY_V3, JSON.stringify(store));
+      localStorage.setItem(storageKey, JSON.stringify(store));
       return store;
     }
     return null;
@@ -88,10 +94,10 @@ function readPrefsStore(): PrefsStore | null {
   }
 }
 
-function savePrefsStore(store: PrefsStore): void {
+function savePrefsStore(store: PrefsStore, storageKey = PREFS_KEY_V3): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(PREFS_KEY_V3, JSON.stringify(store));
+    localStorage.setItem(storageKey, JSON.stringify(store));
   } catch {
     /* ignore */
   }
@@ -99,8 +105,11 @@ function savePrefsStore(store: PrefsStore): void {
 
 export function useConfig() {
   const { state } = useActiveSession();
+  const isShowcase = useShowcaseMode();
   const sessionId = state.resumeSessionId;
   const sessionMeta = state.sessionMeta;
+  const prefsStorageKey = isShowcase ? SHOWCASE_PREFS_KEY : PREFS_KEY_V3;
+  const prefsSwrKey = isShowcase ? SHOWCASE_PREFS_SWR_KEY : PREFS_SWR_KEY;
 
   const { data: config, error, isLoading } = useSWR("/api/config", fetcher, {
     revalidateOnFocus: false,
@@ -108,8 +117,8 @@ export function useConfig() {
 
   // prefs store 用 SWR 共享：同一缓存键下所有调用方拿到同一份数据
   const { data: store, mutate: mutateStore } = useSWR<PrefsStore | null>(
-    PREFS_SWR_KEY,
-    readPrefsStore,
+    prefsSwrKey,
+    () => readPrefsStore(prefsStorageKey, !isShowcase),
     { fallbackData: null },
   );
 
@@ -133,7 +142,7 @@ export function useConfig() {
         },
         sessions: {},
       };
-      savePrefsStore(initialStore);
+      savePrefsStore(initialStore, prefsStorageKey);
       void mutateStore(initialStore, { revalidate: false });
       return;
     }
@@ -149,10 +158,10 @@ export function useConfig() {
           approvalPolicy: config.defaults.approvalPolicy,
         },
       };
-      savePrefsStore(upgraded);
+      savePrefsStore(upgraded, prefsStorageKey);
       void mutateStore(upgraded, { revalidate: false });
     }
-  }, [config, store, mutateStore]);
+  }, [config, store, mutateStore, prefsStorageKey]);
 
   // 派生当前会话的偏好
   const prefs = useMemo<SessionPrefs | null>(() => {
@@ -208,20 +217,20 @@ export function useConfig() {
               ...baseStore,
               sessions: { ...baseStore.sessions, [sessionId]: updated },
             };
-            savePrefsStore(nextStore);
+            savePrefsStore(nextStore, prefsStorageKey);
             return nextStore;
           }
 
           // 无 sessionId：更新 default
           const updatedDefault: SessionPrefs = { ...baseStore.default, ...patch };
           const nextStore: PrefsStore = { ...baseStore, default: updatedDefault };
-          savePrefsStore(nextStore);
+          savePrefsStore(nextStore, prefsStorageKey);
           return nextStore;
         },
         { revalidate: false },
       );
     },
-    [mutateStore, config, sessionId, sessionMeta],
+    [mutateStore, config, sessionId, sessionMeta, prefsStorageKey],
   );
 
   return {

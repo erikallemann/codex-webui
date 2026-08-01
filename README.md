@@ -16,7 +16,7 @@ Upstream project: [openai/codex](https://github.com/openai/codex)
 
 ![Codex Web UI safe showcase](./docs/showcase.png)
 
-This image is captured from `/showcase`, an isolated static page built entirely from fictional data. It does not read local sessions, invoke Codex CLI, or call application API routes.
+This image is captured from `/showcase`, where the production `AppShell` and its real UI components run against an isolated synthetic data layer. The fixture includes three temporary projects and three non-project conversations; it does not read local sessions, invoke Codex CLI, access the real filesystem, or send requests to backend API routes.
 
 ## Why
 
