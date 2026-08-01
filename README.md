@@ -37,6 +37,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | **Streaming conversation** | Connects to `codex app-server` over JSON-RPC and maps notifications to SSE in real time — agent messages, reasoning, command execution, file changes, MCP tool calls, web search, plan updates, and turn boundaries. |
 | **Session replay** | Scans `~/.codex/sessions/` and `~/.codex/archived_sessions/` (including `.jsonl.zst` archives) and replays any past session through the same rendering pipeline as live streams. |
 | **Resume** | Pick a historical session, type a new prompt — the next app-server turn appends to the same timeline. |
+| **Isolated showcase** | Run the production interface at `/showcase` with fictional projects and conversations for safe screenshots, demos, visual QA, and onboarding. |
 | **Diff viewer** | `file_change` items open a full-screen unified-diff dialog with add/remove/context line coloring, double line numbers, syntax highlighting, and one-click patch copy. |
 | **Config panel** | Model, reasoning effort, collaboration mode (`Default` / `Plan`), sandbox, approval policy, and working directory — persisted per session in `localStorage`. |
 | **Interactive questions** | In Plan mode, structured `request_user_input` questions render as option/text cards; submitting an answer resumes the same turn through `/api/exec/respond`. |
@@ -84,6 +85,14 @@ npm start              # serves on 127.0.0.1:3000
 ```
 
 Both `dev` and `start` bind to `127.0.0.1` only — there is no remote access.
+
+## Isolated showcase tool
+
+`/showcase` is a standalone tool for presenting and testing the production interface without exposing your real projects or conversations. Start the app normally, then open [http://127.0.0.1:3000/showcase](http://127.0.0.1:3000/showcase).
+
+It mounts the same production `AppShell` and UI components as the main application, backed by three fictional projects and three fictional non-project conversations. Use it for README screenshots, product demos, visual QA, and onboarding.
+
+The showcase has its own cache and preferences, and every application API request is answered by in-memory fixtures. Unknown API routes and external requests are rejected. It does not read `CODEX_HOME`, local sessions, the real filesystem, or invoke Codex CLI; prompts entered in the composer receive synthetic responses only.
 
 ## How it works
 

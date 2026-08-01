@@ -26,9 +26,9 @@ Useful scripts:
 | `npm start` | Production server on `127.0.0.1:3000` |
 | `npm run lint` | ESLint (`eslint-config-next`) |
 
-## Safe showcase page
+## Isolated showcase tool
 
-`/showcase` mounts the production `AppShell`, including the real sidebar, session list, top bar, timeline, event cards, composer, directory picker, and config panel. The visual and interaction code is therefore identical to the main application rather than a separately maintained imitation.
+`/showcase` is a standalone project feature for safe screenshots, product demos, visual QA, and onboarding. Open `http://127.0.0.1:3000/showcase` after starting the application. It mounts the production `AppShell`, including the real sidebar, session list, top bar, timeline, event cards, composer, directory picker, and config panel. The visual and interaction code is therefore identical to the main application rather than a separately maintained imitation.
 
 Isolation happens at the data boundary. `ShowcaseEnvironment` installs an in-page fetch adapter before mounting `AppShell`, gives SWR a private cache, nests a fresh `ActiveSessionProvider`, and stores configuration under `codex-webui-showcase-prefs-v3`. Every `/api/*` call made by production hooks is answered from `lib/showcase/fixtures.ts`; unknown API routes and external requests are rejected. The fixture contains three synthetic projects and three standalone conversations, plus virtual config, skills, filesystem, usage, replay streams, and exec responses. It never reads `CODEX_HOME`, local sessions, the real filesystem, or Codex CLI.
 
