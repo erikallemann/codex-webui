@@ -49,8 +49,8 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | **Response images** | Markdown images use bounded, theme-aware rendering. Local images under `~/.codex/visualizations/` are served through a guarded read-only endpoint; blocked or missing images show a compact fallback instead of a broken element. |
 | **Virtual scrolling** | `@tanstack/react-virtual` with dynamic measurement keeps long sessions (hundreds of events) smooth. |
 | **Abort** | Stop button (or closing the tab) aborts the fetch, kills the codex child process, and leaves the partial rollout on disk for resume. |
-| **Light / dark theme** | System-aware theme with manual toggle, persisted across sessions. |
-| **Interface language** | Simplified Chinese, English, or Follow system. The compact language menu mirrors the light/dark theme control, applies immediately, persists in `localStorage`, and updates the document language. |
+| **Light / dark theme** | Follows the system by default, with a persistent manual light/dark/system toggle. |
+| **Interface language** | Follows the system by default, with Simplified Chinese and English overrides. The compact language menu applies immediately, persists in `localStorage`, and updates the document language. |
 
 ## Prerequisites
 

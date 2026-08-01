@@ -167,9 +167,11 @@ Rendered event types (see `EventCard.tsx` dispatcher): `agent_message`, `reasoni
 
 `hooks/useConfig.ts` fetches `/api/config` (model/sandbox/approval/effort enums) via SWR and persists per-session preferences, including collaboration mode, to `localStorage` under `codex-webui-prefs-v3` (a `default` object + a `sessions` map). Switching models auto-corrects unsupported `effort` values.
 
+Theme and interface language both default to following the operating system when no stored preference exists. `ThemeProvider` uses `defaultTheme="system"` with `enableSystem`, while next-themes preserves explicit light/dark selections. Existing user preferences are never overwritten by the defaults.
+
 ### Internationalization
 
-`LanguageProvider` owns an independent `codex-webui-language` preference with `system`, `zh-CN`, and `en`. In system mode it resolves `navigator.language` and listens for `languagechange`; every resolved change also updates `document.documentElement.lang`. UI strings live in `lib/i18n/messages.ts`; user/model content is never translated. Add new strings to both catalogs through the typed `MessageKey` union. Keep `LanguageToggle` visually aligned with `ThemeToggle` (button dimensions, chevron, menu surface, typography, and selected-state dot) so the two global preferences read as one control family in both themes.
+`LanguageProvider` owns an independent `codex-webui-language` preference with `system`, `zh-CN`, and `en`, initialized to `system`. In system mode it resolves `navigator.language` and listens for `languagechange`; every resolved change also updates `document.documentElement.lang`. UI strings live in `lib/i18n/messages.ts`; user/model content is never translated. Add new strings to both catalogs through the typed `MessageKey` union. Keep `LanguageToggle` visually aligned with `ThemeToggle` (button dimensions, chevron, menu surface, typography, and selected-state dot) so the two global preferences read as one control family in both themes.
 
 For rich hover details, use one tooltip implementation per trigger. Do not combine a native `title` attribute with a custom `role="tooltip"` surface: browsers will display both. The context-usage trigger is keyboard-focusable and exposes only the custom tooltip through `aria-describedby`.
 

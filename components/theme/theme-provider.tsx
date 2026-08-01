@@ -7,8 +7,8 @@
  * 在 RootLayout 中包裹整个应用，通过 attribute="class" 在 <html> 上
  * 注入 "dark" / "light" class，与 globals.css 的 :root / .dark 对应。
  *
- * defaultTheme="dark"：保留原有暗色优先体验。
- * enableSystem：允许"跟随系统"选项。
+ * defaultTheme="system"：首次使用时跟随操作系统明暗主题。
+ * enableSystem：持续响应系统主题变化，同时保留用户手动选择。
  * disableTransitionOnChange：切换瞬间禁用 CSS 过渡，避免颜色闪烁动画。
  */
 
