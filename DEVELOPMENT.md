@@ -36,6 +36,8 @@ Keep all fixture content fictional and never copy local session text or paths in
 
 ## Architecture overview
 
+`middleware.ts` is the mandatory security boundary for every `/api/*` route. It delegates to `lib/server/local-api-security.ts`, which accepts only loopback request URLs and `Host` headers, requires browser `Origin` to match the request origin, rejects cross-site Fetch Metadata, and requires `application/json` for all write methods. Keep API routes under the `/api` matcher; a new write transport must not weaken these checks. This protects the unauthenticated local execution bridge against browser CSRF and DNS-rebinding-style Host abuse.
+
 ```
 Browser ──POST /api/exec──▶ Next.js Route Handler
                               │
@@ -73,6 +75,7 @@ app/
     config/route.ts             GET → model/sandbox/approval/effort enums
     fs/list/route.ts            GET → directory listing (cwd picker)
     skills/route.ts             GET → scan ~/.codex/skills + enabled plugins
+middleware.ts                   Local-only request boundary for every /api/* route
 lib/
   codex/
     binary.ts                   Resolve codex binary (CODEX_BIN → CODEX_JS → npm global → PATH)
@@ -96,6 +99,7 @@ lib/
     session-index.ts            Read session_index.jsonl → id→thread_name
     types.ts
   server/
+    local-api-security.ts       Loopback, same-origin, Fetch Metadata, and JSON-write validation
     sse.ts                      SSE frame encoder
     config.ts                   Enum resolution for /api/config
     skills.ts                   Scan skills directory + plugins

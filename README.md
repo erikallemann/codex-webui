@@ -96,6 +96,12 @@ It mounts the same production `AppShell` and UI components as the main applicati
 
 The showcase has its own cache and preferences, and every application API request is answered by in-memory fixtures. Unknown API routes and external requests are rejected. It does not read `CODEX_HOME`, local sessions, the real filesystem, or invoke Codex CLI; prompts entered in the composer receive synthetic responses only.
 
+## Local API security
+
+The application is intentionally local-only and has no user authentication. Every `/api/*` request passes through a local request boundary that requires a loopback URL and `Host`, rejects cross-origin and cross-site browser requests, and accepts write bodies only as `application/json`. These checks protect the local Codex execution bridge from cross-site request forgery while preserving normal browser and command-line access from the same machine.
+
+Do not expose the server to a LAN or the public internet. The loopback and same-origin checks are defense in depth for the supported single-user local deployment, not a replacement for authentication in a remotely accessible service.
+
 ## How it works
 
 ```
