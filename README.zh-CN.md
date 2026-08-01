@@ -8,6 +8,8 @@
 
 [English](./README.md) · [开发说明](./DEVELOPMENT.md)
 
+上游项目：[openai/codex](https://github.com/openai/codex)
+
 ---
 
 ## 为什么需要

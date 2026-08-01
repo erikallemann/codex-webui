@@ -8,6 +8,8 @@ A lightweight, local graphical interface for the [OpenAI Codex CLI](https://gith
 
 [中文文档](./README.zh-CN.md) · [Development Guide](./DEVELOPMENT.md)
 
+Upstream project: [openai/codex](https://github.com/openai/codex)
+
 ---
 
 ## Why
