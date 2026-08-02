@@ -19,6 +19,12 @@ import {
 } from "./stream-controller";
 import { fetchUsageSnapshot } from "./useUsageRefresh";
 
+let pendingUserMessageCounter = 0;
+
+function pendingUserMessageId(): string {
+  return `pending-user-${Date.now()}-${pendingUserMessageCounter++}`;
+}
+
 export function useExecStream() {
   const { dispatch, dispatchEvent } = useActiveSession();
   const [isRunning, setIsRunning] = useState(false);
@@ -32,6 +38,12 @@ export function useExecStream() {
       // 新会话从空状态开始；续接会话保留已回放的历史时间线。
       // 两种情况都在请求发出前进入 running，避免 app-server 初始化期间退回欢迎页。
       dispatch({ type: "START_EXECUTION", resumeSessionId: req.resumeSessionId ?? null });
+      // app-server 的实时通知不保证回传用户输入；先本地显示，避免在启动期间遗漏本轮消息。
+      dispatch({
+        type: "ADD_PENDING_USER_MESSAGE",
+        item: { id: pendingUserMessageId(), type: "user_message", text: req.prompt },
+        timestamp: new Date().toISOString(),
+      });
 
       setIsRunning(true);
 

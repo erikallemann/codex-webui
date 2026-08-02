@@ -153,7 +153,7 @@ logo/
 3. `AppServerConnection` spawns `codex app-server`, performs `initialize`, then sends `thread/start` or `thread/resume` followed by `turn/start` while keeping stdin open.
 4. `app-server-events.ts` maps notifications and camelCase thread items into the existing SSE event types. `AbortSignal` kills the app-server process.
 5. A server request named `item/tool/requestUserInput` is registered in `interactions.ts` and emitted as a `user_input_request` timeline item. The card posts answers to `/api/exec/respond`, which writes the JSON-RPC response to the same process so the same turn continues.
-6. `hooks/useExecStream.ts` marks the state as running before awaiting the app-server response. A resumed request keeps its replayed timeline; a new request starts from an empty timeline. The first non-ephemeral `thread.started` event becomes the next prompt's `resumeSessionId`.
+6. `hooks/useExecStream.ts` marks the state as running and inserts a pending `user_message` before awaiting the app-server response. A resumed request keeps its replayed timeline; a new request starts from an empty timeline before that pending item is appended. If an app-server user item later arrives, the reducer reconciles it by text instead of duplicating it. The first non-ephemeral `thread.started` event becomes the next prompt's `resumeSessionId`.
 7. `lib/server/sse.ts` encodes mapped events as `data: <json>\n\n`; `hooks/useExecStream.ts` dispatches them to the shared reducer.
 
 ### Replay (`/api/sessions/:id/events`)
@@ -175,7 +175,7 @@ logo/
 
 ### Frontend state machine (`lib/session/active-session-state.ts` + `stores/active-session.tsx`)
 
-A pure reducer, wired through a React Context provider, with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, and `resumeSessionId`. `START_EXECUTION` enters `running` before network/app-server startup; resumed executions preserve the existing timeline while new executions reset it. Both live and replay events route through the same `dispatchEvent`. The pure module is the regression-test seam for these transitions.
+A pure reducer, wired through a React Context provider, with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, and `resumeSessionId`. `START_EXECUTION` enters `running` before network/app-server startup; resumed executions preserve the existing timeline while new executions reset it. `ADD_PENDING_USER_MESSAGE` immediately appends the submitted prompt and reconciles a matching live user item if Codex later sends one. Both live and replay events route through the same `dispatchEvent`. The pure module is the regression-test seam for these transitions.
 
 ### Timeline rendering (`components/session/EventTimeline.tsx`)
 

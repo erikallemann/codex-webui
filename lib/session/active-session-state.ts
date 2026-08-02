@@ -77,6 +77,21 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
       };
     }
 
+    case "ADD_PENDING_USER_MESSAGE":
+      return {
+        ...state,
+        timeline: [
+          ...state.timeline,
+          {
+            kind: "item",
+            id: action.item.id,
+            item: action.item,
+            timestamp: action.timestamp,
+            pendingUserMessage: true,
+          },
+        ],
+      };
+
     case "SET_RESUME":
       return { ...state, resumeSessionId: action.sessionId };
 
@@ -116,19 +131,36 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
         ],
       };
 
-    case "item.completed":
+    case "item.completed": {
+      const completedEntry = {
+        kind: "item" as const,
+        id: event.item.id,
+        item: event.item,
+        timestamp: event.timestamp,
+      };
+      if (event.item.type === "user_message") {
+        const timeline = [...state.timeline];
+        for (let i = timeline.length - 1; i >= 0; i--) {
+          const entry = timeline[i];
+          if (
+            entry.kind === "item" &&
+            entry.pendingUserMessage &&
+            entry.item.type === "user_message" &&
+            entry.item.text === event.item.text
+          ) {
+            timeline[i] = completedEntry;
+            return { ...state, timeline };
+          }
+        }
+      }
       return {
         ...state,
         timeline: [
           ...state.timeline,
-          {
-            kind: "item",
-            id: event.item.id,
-            item: event.item,
-            timestamp: event.timestamp,
-          },
+          completedEntry,
         ],
       };
+    }
 
     case "turn.completed": {
       const timeline = [...state.timeline];

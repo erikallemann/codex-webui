@@ -77,3 +77,52 @@ test("resuming a session keeps prior turns while the next turn starts", () => {
   assert.equal(state.timeline[0].kind, "turn");
   assert.equal(state.timeline[0].status, "completed");
 });
+
+test("a submitted prompt is visible before the live stream returns its user item", () => {
+  const { initialState, reducer } = loadStateMachine();
+  let state = reducer(initialState, { type: "START_REPLAY" });
+  state = event(reducer, state, {
+    type: "item.completed",
+    item: { id: "user-1", type: "user_message", text: "earlier prompt" },
+  });
+  state = event(reducer, state, {
+    type: "item.completed",
+    item: { id: "agent-1", type: "agent_message", text: "earlier reply" },
+  });
+
+  state = reducer(state, {
+    type: "ADD_PENDING_USER_MESSAGE",
+    item: { id: "pending-user-2", type: "user_message", text: "new prompt" },
+  });
+
+  assert.equal(state.timeline.length, 3);
+  assert.deepEqual(state.timeline.at(-1), {
+    kind: "item",
+    id: "pending-user-2",
+    item: { id: "pending-user-2", type: "user_message", text: "new prompt" },
+    timestamp: undefined,
+    pendingUserMessage: true,
+  });
+});
+
+test("a live user item reconciles its matching pending message instead of duplicating it", () => {
+  const { initialState, reducer } = loadStateMachine();
+  let state = reducer(initialState, {
+    type: "ADD_PENDING_USER_MESSAGE",
+    item: { id: "pending-user-1", type: "user_message", text: "new prompt" },
+  });
+
+  state = event(reducer, state, {
+    type: "item.completed",
+    item: { id: "server-user-1", type: "user_message", text: "new prompt" },
+    timestamp: "2026-08-02T00:00:00.000Z",
+  });
+
+  assert.equal(state.timeline.length, 1);
+  assert.deepEqual(state.timeline[0], {
+    kind: "item",
+    id: "server-user-1",
+    item: { id: "server-user-1", type: "user_message", text: "new prompt" },
+    timestamp: "2026-08-02T00:00:00.000Z",
+  });
+});

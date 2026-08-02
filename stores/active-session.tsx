@@ -28,6 +28,7 @@ import type {
   SessionMeta,
   ResponseItem,
   RateLimits,
+  UserMessageItem,
 } from "@/types/api";
 import { initialState, reducer } from "@/lib/session/active-session-state";
 
@@ -56,6 +57,8 @@ export interface ItemEntry {
   item: ResponseItem;
   /** item 时间戳（ISO 字符串，回放来自 rollout 行；实时来自 Date.now()） */
   timestamp?: string;
+  /** 用户消息已在本地插入，等待 app-server 的同一条 item 确认。 */
+  pendingUserMessage?: boolean;
 }
 
 /** 时间线条目联合 */
@@ -95,6 +98,7 @@ export type Action =
   | { type: "RESET" }
   | { type: "START_REPLAY" }
   | { type: "START_EXECUTION"; resumeSessionId: string | null }
+  | { type: "ADD_PENDING_USER_MESSAGE"; item: UserMessageItem; timestamp?: string }
   | { type: "SET_RESUME"; sessionId: string | null };
 
 // ---------------------------------------------------------------------------

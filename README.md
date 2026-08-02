@@ -38,7 +38,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 
 | Area | What it does |
 |---|---|
-| **Streaming conversation** | Connects to `codex app-server` over JSON-RPC and maps notifications to SSE in real time — agent messages, reasoning, command execution, file changes, MCP tool calls, web search, plan updates, and turn boundaries. The conversation view enters its running state immediately while app-server starts, so a slow startup does not replace it with the welcome screen. |
+| **Streaming conversation** | Connects to `codex app-server` over JSON-RPC and maps notifications to SSE in real time — agent messages, reasoning, command execution, file changes, MCP tool calls, web search, plan updates, and turn boundaries. The conversation view enters its running state immediately and inserts the submitted prompt locally before app-server starts, so a slow startup neither replaces it with the welcome screen nor hides the new message. |
 | **Session replay** | Scans `~/.codex/sessions/` and `~/.codex/archived_sessions/` (including `.jsonl.zst` archives) and replays any past session through the same rendering pipeline as live streams. |
 | **Resume** | Pick a historical session, type a new prompt — earlier turns remain visible while the next app-server turn starts and appends to the same timeline. Selecting a project or history item also synchronizes the working directory to that project. New live sessions are made resumable after their thread starts. |
 | **Isolated showcase** | Run the production interface at `/showcase` with fictional projects and conversations for safe screenshots, demos, visual QA, and onboarding. |
