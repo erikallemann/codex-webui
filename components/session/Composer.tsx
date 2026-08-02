@@ -289,7 +289,7 @@ export function Composer() {
   );
 
   return (
-    <div className="border-t border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface))] px-4 py-3">
+    <div className="border-t border-[hsl(var(--overlay)/0.05)] bg-[hsl(var(--surface))] px-4 py-2.5">
       <div className="mx-auto max-w-4xl">
         <div className="relative">
           {/* slash 命令补全菜单 */}
