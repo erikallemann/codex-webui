@@ -29,9 +29,9 @@ export function useExecStream() {
       claimActiveStream(controller);
       let streamedSessionId = req.resumeSessionId;
 
-      // 重置状态（保留 resumeSessionId）
-      dispatch({ type: "RESET" });
-      dispatch({ type: "SET_RESUME", sessionId: req.resumeSessionId ?? null });
+      // 新会话从空状态开始；续接会话保留已回放的历史时间线。
+      // 两种情况都在请求发出前进入 running，避免 app-server 初始化期间退回欢迎页。
+      dispatch({ type: "START_EXECUTION", resumeSessionId: req.resumeSessionId ?? null });
 
       setIsRunning(true);
 
@@ -55,7 +55,13 @@ export function useExecStream() {
         await consumeSseStream(
           response,
           (event) => {
-            if (event.type === "thread.started") streamedSessionId = event.thread_id;
+            if (event.type === "thread.started") {
+              streamedSessionId = event.thread_id;
+              // 新会话的首轮完成后也应能直接续接；ephemeral 会话没有可恢复的 rollout。
+              if (!req.ephemeral) {
+                dispatch({ type: "SET_RESUME", sessionId: event.thread_id });
+              }
+            }
             dispatchEvent(event);
           },
           controller.signal,

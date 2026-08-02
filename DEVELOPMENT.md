@@ -25,6 +25,7 @@ Useful scripts:
 | `npm run build` | Production build |
 | `npm start` | Production server on `127.0.0.1:3000` |
 | `npm run lint` | ESLint (`eslint-config-next`) |
+| `npm test` | Node regression tests for state, stream, and data-boundary helpers |
 
 ## Isolated showcase tool
 
@@ -77,6 +78,8 @@ app/
     skills/route.ts             GET → scan ~/.codex/skills + enabled plugins
 middleware.ts                   Local-only request boundary for every /api/* route
 lib/
+  session/
+    active-session-state.ts     Pure live/replay reducer and execution-start transitions
   codex/
     binary.ts                   Resolve codex binary (CODEX_BIN → CODEX_JS → npm global → PATH)
     args.ts                     Build argv for new + resume sessions
@@ -145,7 +148,8 @@ logo/
 3. `AppServerConnection` spawns `codex app-server`, performs `initialize`, then sends `thread/start` or `thread/resume` followed by `turn/start` while keeping stdin open.
 4. `app-server-events.ts` maps notifications and camelCase thread items into the existing SSE event types. `AbortSignal` kills the app-server process.
 5. A server request named `item/tool/requestUserInput` is registered in `interactions.ts` and emitted as a `user_input_request` timeline item. The card posts answers to `/api/exec/respond`, which writes the JSON-RPC response to the same process so the same turn continues.
-6. `lib/server/sse.ts` encodes mapped events as `data: <json>\n\n`; `hooks/useExecStream.ts` dispatches them to the shared reducer.
+6. `hooks/useExecStream.ts` marks the state as running before awaiting the app-server response. A resumed request keeps its replayed timeline; a new request starts from an empty timeline. The first non-ephemeral `thread.started` event becomes the next prompt's `resumeSessionId`.
+7. `lib/server/sse.ts` encodes mapped events as `data: <json>\n\n`; `hooks/useExecStream.ts` dispatches them to the shared reducer.
 
 ### Replay (`/api/sessions/:id/events`)
 
@@ -162,9 +166,9 @@ logo/
 
 `lib/rollout/list.ts` walks both root directories (cap 10000 files), reads the first line for `session_meta`, extracts the first non-system-injected user message as a preview, joins `session_index.jsonl` for `thread_name`, filters out subagent-generated sessions (source contains `{"subagent":...}`), supports `cwd`/`q` filters, default limit 200.
 
-### Frontend state machine (`stores/active-session.tsx`)
+### Frontend state machine (`lib/session/active-session-state.ts` + `stores/active-session.tsx`)
 
-A `useReducer` state machine with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, `resumeSessionId`. Both live and replay events route through the same `dispatchEvent`.
+A pure reducer, wired through a React Context provider, with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, and `resumeSessionId`. `START_EXECUTION` enters `running` before network/app-server startup; resumed executions preserve the existing timeline while new executions reset it. Both live and replay events route through the same `dispatchEvent`. The pure module is the regression-test seam for these transitions.
 
 ### Timeline rendering (`components/session/EventTimeline.tsx`)
 
