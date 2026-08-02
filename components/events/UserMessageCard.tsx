@@ -138,7 +138,7 @@ export function UserMessageCard({ item, timestamp }: Props) {
 
         {/* 灰色圆角矩形背景仅包裹正文 */}
         {hasText && (
-          <div className="w-full min-w-0 overflow-hidden rounded-xl bg-[hsl(var(--overlay)/0.06)] px-3.5 py-[6px] text-sm text-foreground/90">
+          <div className="w-full min-w-0 overflow-hidden rounded-xl bg-[hsl(var(--overlay)/0.06)] px-3.5 py-[8px] text-sm text-foreground/90">
             {browserComment ? (
               <div className="py-0.5">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground/80">
@@ -369,7 +369,7 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
         onWheel={zoomWithWheel}
         aria-label="图片预览画布：滚轮缩放，左键拖动"
       >
-        <div className="flex min-h-full min-w-full items-center justify-center">
+        <div className="flex h-full w-full items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={images[activeIndex]}

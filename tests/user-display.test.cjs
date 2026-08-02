@@ -71,13 +71,13 @@ test("ordinary user messages remain unchanged", () => {
   assert.equal(formatUserMessageForDisplay("普通消息\n第二行"), "普通消息\n第二行");
 });
 
-test("user message bubbles use compact vertical padding", () => {
+test("user message bubbles default to eight-pixel vertical padding", () => {
   const source = fs.readFileSync(
     path.resolve(__dirname, "..", "components/events/UserMessageCard.tsx"),
     "utf8",
   );
   assert.match(source, /timeline-item flex flex-row-reverse gap-3 px-2 py-1\.5/);
-  assert.match(source, /px-3\.5 py-\[(?:6|8)px\]/);
+  assert.match(source, /px-3\.5 py-\[8px\]/);
   assert.match(source, /<Markdown className="prose-p:my-0 prose-p:leading-6">/);
 });
 
@@ -110,6 +110,14 @@ test("image lightbox only pans overflowing content and clamps it to the canvas e
   assert.match(source, /if \(event\.button !== 0 \|\| !canPan\) return/);
   assert.match(source, /Math\.max\(-maxPanX, Math\.min\(maxPanX, nextPan\.x\)\)/);
   assert.match(source, /Math\.max\(-maxPanY, Math\.min\(maxPanY, nextPan\.y\)\)/);
+});
+
+test("image lightbox centers oversized images against the viewport rather than an expanding flex box", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "components/events/UserMessageCard.tsx"),
+    "utf8",
+  );
+  assert.match(source, /flex h-full w-full items-center justify-center/);
 });
 
 test("file wrapper becomes a compact request plus attachment metadata", () => {
