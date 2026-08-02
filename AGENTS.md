@@ -4,3 +4,4 @@
 - Keep the English `README.md` and Chinese `README.zh-CN.md` aligned when a feature affects end users.
 - After every modification, commit the files changed by the current task to Git. Do not include unrelated pre-existing worktree changes in the commit.
 - In the final response for every modification, show the specific updates made and include the resulting Git commit hash and commit message.
+- For every version release, write detailed bilingual (Chinese and English) release notes that separately describe new or updated functionality and fixes; update the notes for an existing release when asked.
