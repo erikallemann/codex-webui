@@ -107,6 +107,9 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
         ],
       };
 
+    case "SET_GLOBAL_RATE_LIMITS":
+      return { ...state, rateLimits: action.rateLimits };
+
     case "SET_RESUME":
       return { ...state, resumeSessionId: action.sessionId };
 

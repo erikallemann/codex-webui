@@ -20,6 +20,8 @@ import {
   useContext,
   useReducer,
   useCallback,
+  useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import type {
@@ -31,6 +33,10 @@ import type {
   UserMessageItem,
 } from "@/types/api";
 import { initialState, reducer } from "@/lib/session/active-session-state";
+import {
+  loadCachedRateLimits,
+  saveCachedRateLimits,
+} from "@/lib/session/global-rate-limits";
 
 // ---------------------------------------------------------------------------
 // Timeline 条目类型
@@ -100,6 +106,7 @@ export type Action =
   | { type: "FINISH_REPLAY" }
   | { type: "START_EXECUTION"; resumeSessionId: string | null }
   | { type: "ADD_PENDING_USER_MESSAGE"; item: UserMessageItem; timestamp?: string }
+  | { type: "SET_GLOBAL_RATE_LIMITS"; rateLimits: RateLimits | null }
   | { type: "SET_RESUME"; sessionId: string | null };
 
 // ---------------------------------------------------------------------------
@@ -116,7 +123,41 @@ interface ActiveSessionContextValue {
 const ActiveSessionContext = createContext<ActiveSessionContextValue | null>(null);
 
 export function ActiveSessionProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, initialState, (baseState) => ({
+    ...baseState,
+    rateLimits:
+      typeof window === "undefined" ? null : loadCachedRateLimits(window.localStorage),
+  }));
+  const attemptedRateLimitBootstrap = useRef(false);
+
+  useEffect(() => {
+    saveCachedRateLimits(
+      typeof window === "undefined" ? null : window.localStorage,
+      state.rateLimits,
+    );
+  }, [state.rateLimits]);
+
+  useEffect(() => {
+    if (state.rateLimits || attemptedRateLimitBootstrap.current) return;
+    attemptedRateLimitBootstrap.current = true;
+
+    let cancelled = false;
+    void fetch("/api/usage/rate-limits", { cache: "no-store" })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((body: { rateLimits?: RateLimits | null } | null) => {
+        if (!cancelled && body?.rateLimits) {
+          dispatch({ type: "SET_GLOBAL_RATE_LIMITS", rateLimits: body.rateLimits });
+        }
+      })
+      .catch(() => {
+        // 历史文件不可访问时没有可恢复的值，等待下一次实时 token_count。
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.rateLimits]);
+
   const dispatchEvent = useCallback(
     (event: SseEvent) => dispatch({ type: "EVENT", event }),
     [],

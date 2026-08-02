@@ -18,6 +18,19 @@ function loadStateMachine() {
   return loaded.exports;
 }
 
+function loadTypeScriptModule(relativePath) {
+  const filename = path.resolve(__dirname, "..", relativePath);
+  const output = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: filename,
+  }).outputText;
+  const loaded = new Module(filename, module);
+  loaded.filename = filename;
+  loaded.paths = Module._nodeModulePaths(path.dirname(filename));
+  loaded._compile(output, filename);
+  return loaded.exports;
+}
+
 const usage = {
   input_tokens: 10,
   cached_input_tokens: 0,
@@ -160,4 +173,20 @@ test("global rate limits survive session switches and ignore historical replay s
 
   state = reducer(state, { type: "START_EXECUTION", resumeSessionId: null });
   assert.deepEqual(state.rateLimits, liveRateLimits);
+});
+
+test("global rate limits are restored after a page reload", () => {
+  const { loadCachedRateLimits, saveCachedRateLimits } = loadTypeScriptModule(
+    "lib/session/global-rate-limits.ts",
+  );
+  const entries = new Map();
+  const storage = {
+    getItem: (key) => entries.get(key) ?? null,
+    setItem: (key, value) => entries.set(key, value),
+    removeItem: (key) => entries.delete(key),
+  };
+  const rateLimits = { primary: { used_percent: 42, window_duration_mins: 300 } };
+
+  saveCachedRateLimits(storage, rateLimits);
+  assert.deepEqual(loadCachedRateLimits(storage), rateLimits);
 });

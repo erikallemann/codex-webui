@@ -44,7 +44,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | **Isolated showcase** | Run the production interface at `/showcase` with fictional projects and conversations for safe screenshots, demos, visual QA, and onboarding. |
 | **Diff viewer** | `file_change` items open a full-screen unified-diff dialog with add/remove/context line coloring, double line numbers, syntax highlighting, and one-click patch copy. |
 | **Config panel** | Model, reasoning effort, collaboration mode (`Default` / `Plan`), sandbox, approval policy, and working directory — persisted per session in `localStorage`. |
-| **Usage indicators** | Context usage remains specific to the selected conversation. Account rate limits in the top bar are global, persist across session switches, and are updated only by live execution rather than historical replay snapshots. |
+| **Usage indicators** | Context usage remains specific to the selected conversation. Account rate limits in the top bar are global, persist across session switches and page reloads, and are updated only by live execution rather than historical replay snapshots. If no browser cache exists, the app restores the most recently recorded account snapshot across sessions. |
 | **Composer** | A low-profile input surface keeps the prompt, session indicator, and keyboard hints together with a precise 6px vertical frame. |
 | **Message bubbles** | User prompts use compact 8px vertical padding and a tight single-paragraph rhythm without changing multiline Markdown layout. |
 | **Interactive questions** | In Plan mode, structured `request_user_input` questions render as option/text cards; submitting an answer resumes the same turn through `/api/exec/respond`. |
