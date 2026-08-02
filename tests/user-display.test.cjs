@@ -120,6 +120,16 @@ test("image lightbox centers oversized images against the viewport rather than a
   assert.match(source, /flex h-full w-full items-center justify-center/);
 });
 
+test("image lightbox keeps a padded canvas and measures it for pan bounds", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "components/events/UserMessageCard.tsx"),
+    "utf8",
+  );
+  assert.match(source, /const canvasRef = useRef<HTMLDivElement>\(null\)/);
+  assert.match(source, /canvasRef\.current\?\.getBoundingClientRect\(\)/);
+  assert.match(source, /className="absolute inset-4 overflow-hidden"/);
+});
+
 test("file wrapper becomes a compact request plus attachment metadata", () => {
   const {
     extractUserMessageAttachments,

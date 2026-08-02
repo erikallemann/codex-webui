@@ -199,6 +199,7 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
 
   const renderedWidth = naturalSize ? naturalSize.width * zoom / 100 : 0;
@@ -236,7 +237,8 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
 
   useEffect(() => {
     const refit = () => {
-      setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
+      const bounds = canvasRef.current?.getBoundingClientRect();
+      if (bounds) setCanvasSize({ width: bounds.width, height: bounds.height });
       if (isFit) fitToViewport();
     };
     refit();
@@ -365,7 +367,8 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
       </div>
 
       <div
-        className="absolute inset-0 overflow-hidden"
+        ref={canvasRef}
+        className="absolute inset-4 overflow-hidden"
         onWheel={zoomWithWheel}
         aria-label="图片预览画布：滚轮缩放，左键拖动"
       >
