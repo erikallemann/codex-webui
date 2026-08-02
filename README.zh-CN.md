@@ -132,7 +132,11 @@ Showcase 使用独立缓存与偏好设置，应用发出的所有 API 请求都
 3. npm 全局的 `@openai/codex/bin/codex.js`，通过 `node` 启动（平台无关，规避 Windows `.cmd` 垫片 / `shell:true` 注入风险）
 4. 从 `PATH` 解析 `codex`（兜底）
 
-Windows 上优先使用 Node 启动器而非 `.cmd` 垫片，出于安全考虑。
+Windows 上的解析流程不经过命令解释器：直接检查已知的 npm 全局目录，不启动
+`npm.cmd`；PATH 兜底使用 `shell:false` 调用 `where.exe`，且只接受可以直接启动的
+路径，不执行 `.cmd`、`.bat`、`.ps1` 垫片。这样发送消息时不会额外创建 `cmd.exe`。
+由于 Web 服务器确实需要启动 Codex，安全软件仍可能按策略提示；如仍出现弹窗，建议
+仅为本地应用/Node/Codex 安装目录配置范围明确的信任规则，不要全局关闭防护。
 
 ## 配置
 

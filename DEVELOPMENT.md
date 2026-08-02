@@ -183,6 +183,10 @@ Rendered event types (see `EventCard.tsx` dispatcher): `agent_message`, `reasoni
 
 `hooks/useConfig.ts` fetches `/api/config` (model/sandbox/approval/effort enums) via SWR and persists per-session preferences, including collaboration mode, to `localStorage` under `codex-webui-prefs-v3` (a `default` object + a `sessions` map). `updatePrefs` accepts an optional explicit session target so project/session selection can write cwd to the intended scope instead of whichever session is currently rendered. Switching models auto-corrects unsupported `effort` values.
 
+### Windows Codex process resolution
+
+`lib/codex/binary.ts` must keep binary discovery shell-free on Windows. Do not invoke `npm.cmd`, `.cmd`, `.bat`, or `.ps1` shims just to locate Codex: inspect the known npm global directories, resolve `@openai/codex/bin/codex.js` through Node, and use `where.exe` with `shell:false` only as a direct-executable fallback. The app-server and legacy exec paths also use `spawn(..., { shell: false, windowsHide: true })`. This removes the unnecessary `cmd.exe` child process that can trigger Web-server protection when a user sends a message. It does not bypass endpoint security; a local, narrowly scoped trust rule may still be required by the user's security product.
+
 Theme and interface language both default to following the operating system when no stored preference exists. `ThemeProvider` uses `defaultTheme="system"` with `enableSystem`, while next-themes preserves explicit light/dark selections. Existing user preferences are never overwritten by the defaults.
 
 ### Internationalization

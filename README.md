@@ -130,7 +130,13 @@ The app resolves the codex binary in this order:
 3. npm global `@openai/codex/bin/codex.js` launched via `node` (platform-independent, avoids Windows `.cmd` shim / `shell:true` injection risks)
 4. `codex` resolved from `PATH` (fallback)
 
-On Windows, the Node launcher is preferred over the `.cmd` shim for security.
+On Windows, discovery is shell-free: known npm global directories are checked without
+launching `npm.cmd`, and the `PATH` fallback uses `where.exe` with `shell:false` and
+accepts only directly executable paths. `.cmd`, `.bat`, and `.ps1` shims are not invoked.
+This avoids creating an extra `cmd.exe` process when a message starts. Security software
+may still prompt because the web server legitimately starts Codex; if that happens, use a
+narrow trusted-app rule for this local app/Node/Codex installation instead of disabling
+protection globally.
 
 ## Configuration
 
