@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
 import { parseBrowserCommentDisplay } from "@/lib/codex/user-message";
@@ -196,6 +196,9 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [zoom, setZoom] = useState(100);
   const [isFit, setIsFit] = useState(true);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const drag = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
 
   const fitToViewport = useCallback((size = naturalSize) => {
     if (!size) return;
@@ -207,12 +210,16 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
       (availableHeight / size.height) * 100,
     );
     setZoom(Math.max(10, fittedZoom));
+    setPan({ x: 0, y: 0 });
     setIsFit(true);
   }, [naturalSize]);
 
   useEffect(() => {
     setNaturalSize(null);
     setZoom(100);
+    setPan({ x: 0, y: 0 });
+    setIsDragging(false);
+    drag.current = null;
     setIsFit(true);
   }, [activeIndex]);
 
@@ -227,6 +234,41 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
   const setManualZoom = (nextZoom: number) => {
     setZoom(Math.min(400, Math.max(10, nextZoom)));
     setIsFit(false);
+  };
+
+  const zoomWithWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setZoom((current) => Math.min(400, Math.max(10, current * Math.exp(-event.deltaY * 0.0015))));
+    setIsFit(false);
+  };
+
+  const startDrag = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+    setIsDragging(true);
+  };
+
+  const moveDrag = (event: React.PointerEvent<HTMLImageElement>) => {
+    const currentDrag = drag.current;
+    if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
+    setPan({
+      x: currentDrag.panX + event.clientX - currentDrag.startX,
+      y: currentDrag.panY + event.clientY - currentDrag.startY,
+    });
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLImageElement>) => {
+    if (drag.current?.pointerId !== event.pointerId) return;
+    drag.current = null;
+    setIsDragging(false);
   };
 
   const previousImage = () => onChange((activeIndex - 1 + images.length) % images.length);
@@ -298,7 +340,11 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
         </button>
       </div>
 
-      <div className="absolute inset-0 overflow-auto px-6 pb-10 pt-16">
+      <div
+        className="absolute inset-0 overflow-hidden px-6 pb-10 pt-16"
+        onWheel={zoomWithWheel}
+        aria-label="图片预览画布：滚轮缩放，左键拖动"
+      >
         <div className="flex min-h-full min-w-full items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -306,6 +352,10 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
             alt={`放大的浏览器批注截图 ${activeIndex + 1}`}
             draggable={false}
             onMouseDown={(event) => event.stopPropagation()}
+            onPointerDown={startDrag}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
             onLoad={(event) => {
               const size = {
                 width: event.currentTarget.naturalWidth,
@@ -314,8 +364,11 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
               setNaturalSize(size);
               fitToViewport(size);
             }}
-            className="max-w-none select-none rounded-lg bg-white object-contain shadow-2xl"
-            style={naturalSize ? { width: `${naturalSize.width * zoom / 100}px` } : undefined}
+            className={`max-w-none select-none rounded-lg bg-white object-contain shadow-2xl ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+            style={naturalSize ? {
+              width: `${naturalSize.width * zoom / 100}px`,
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
+            } : undefined}
           />
         </div>
       </div>
