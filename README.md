@@ -51,7 +51,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | **Slash commands** | 15 codex CLI commands (`/approvals`, `/architect`, `/clear`, `/compact`, `/diff`, `/goal`, `/help`, `/init`, `/mode`, `/model`, `/plan`, `/review`, `/sandbox`, `/skills`, `/status`) with an autocomplete menu triggered by `/`. |
 | **Skills `@` completion** | Scan `~/.codex/skills/` and enabled plugins, insert skill references via `@`. |
 | **Conversation navigation** | A vertical dot rail on the left maps to each user message; hover for a preview tooltip, click to jump. The active dot auto-highlights as you scroll. |
-| **Collapsible thinking process** | Continuous intermediate events (reasoning / command / file / search / mcp / plan) merge into a single collapsible block with a summary preview and action count. |
+| **Collapsible thinking process** | Continuous intermediate events (reasoning / command / file / search / mcp / plan) merge into a single collapsible block with a summary preview and action count. Collapsed summaries truncate within the gray header rather than overflowing it. |
 | **Code highlighting** | Token colors match VSCode Dark+ / Light+ themes, verified for keywords, functions, strings, numbers, built-ins, and parameters. |
 | **Response images** | Markdown images use bounded, theme-aware rendering. Local images under `~/.codex/visualizations/` are served through a guarded read-only endpoint; blocked or missing images show a compact fallback instead of a broken element. |
 | **Virtual scrolling** | `@tanstack/react-virtual` with dynamic measurement keeps long sessions (hundreds of events) smooth. |

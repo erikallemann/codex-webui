@@ -198,7 +198,7 @@ export function ResponseBlockCard({
                 <button
                   onClick={handleToggle}
                   aria-expanded={isExpanded}
-                  className="flex flex-1 items-center gap-2 text-left group focus-ring rounded-md -mx-1 px-1 py-0.5 transition-colors hover:bg-[hsl(var(--overlay)/0.04)]"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left group focus-ring rounded-md -mx-1 px-1 py-0.5 transition-colors hover:bg-[hsl(var(--overlay)/0.04)]"
                 >
                   <ChevronRight
                     className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 transition-transform ${
@@ -222,7 +222,7 @@ export function ResponseBlockCard({
                   {!isExpanded && (
                     <>
                       {previewText && (
-                        <span className="truncate text-xs italic text-[hsl(var(--muted-foreground))]/60 flex-1">
+                        <span className="min-w-0 flex-1 truncate text-xs italic text-[hsl(var(--muted-foreground))]/60">
                           {previewText}
                         </span>
                       )}
@@ -235,7 +235,7 @@ export function ResponseBlockCard({
                   )}
                 </button>
               ) : (
-                <div className="flex flex-1 items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   <ChevronRight
                     className={`h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]/70 transition-transform ${
                       isExpanded ? "rotate-90" : ""
@@ -255,7 +255,7 @@ export function ResponseBlockCard({
                     </span>
                   )}
                   {previewText && (
-                    <span className="truncate text-xs italic text-[hsl(var(--muted-foreground))]/60 flex-1">
+                    <span className="min-w-0 flex-1 truncate text-xs italic text-[hsl(var(--muted-foreground))]/60">
                       {previewText}
                     </span>
                   )}
