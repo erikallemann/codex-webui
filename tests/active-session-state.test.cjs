@@ -138,3 +138,26 @@ test("a completed replay closes unmatched running turns", () => {
   assert.equal(state.timeline[0].kind, "turn");
   assert.equal(state.timeline[0].status, "completed");
 });
+
+test("global rate limits survive session switches and ignore historical replay snapshots", () => {
+  const { initialState, reducer } = loadStateMachine();
+  const liveRateLimits = { primary: { used_percent: 42, window_duration_mins: 300 } };
+  const historicalRateLimits = { primary: { used_percent: 16, window_duration_mins: 300 } };
+  let state = event(reducer, initialState, {
+    type: "rate_limits.updated",
+    rateLimits: liveRateLimits,
+  });
+
+  state = reducer(state, { type: "START_REPLAY" });
+  assert.deepEqual(state.rateLimits, liveRateLimits);
+
+  state = event(reducer, state, {
+    type: "usage.updated",
+    snapshot: { contextTokens: 123, rateLimits: historicalRateLimits },
+  });
+  assert.equal(state.contextTokens, 123);
+  assert.deepEqual(state.rateLimits, liveRateLimits);
+
+  state = reducer(state, { type: "START_EXECUTION", resumeSessionId: null });
+  assert.deepEqual(state.rateLimits, liveRateLimits);
+});

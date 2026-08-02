@@ -47,7 +47,7 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
 
     case "RESET":
       turnCounter = 0;
-      return { ...initialState };
+      return { ...initialState, rateLimits: state.rateLimits };
 
     case "START_REPLAY":
       turnCounter = 0;
@@ -55,6 +55,8 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
         ...initialState,
         status: "running",
         isReplay: true,
+        // 速率限制是账号级实时状态，不应随历史会话切换而回退。
+        rateLimits: state.rateLimits,
         resumeSessionId: state.resumeSessionId,
       };
 
@@ -86,6 +88,7 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
         ...initialState,
         status: "running",
         isReplay: false,
+        rateLimits: state.rateLimits,
       };
     }
 
@@ -226,6 +229,7 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
     }
 
     case "rate_limits.updated":
+      if (state.isReplay) return state;
       return {
         ...state,
         rateLimits: event.rateLimits,
@@ -240,7 +244,10 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
           event.snapshot.lastUsage?.input_tokens ??
           state.contextTokens,
         contextWindow: event.snapshot.contextWindow ?? state.contextWindow,
-        rateLimits: event.snapshot.rateLimits ?? state.rateLimits,
+        // 回放的 token_count 是历史快照；只允许实时流更新账号级限额。
+        rateLimits: state.isReplay
+          ? state.rateLimits
+          : event.snapshot.rateLimits ?? state.rateLimits,
         hasUsageSnapshot: true,
       };
 

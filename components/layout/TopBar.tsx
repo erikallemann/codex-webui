@@ -7,7 +7,7 @@
  * 右侧：codex 速率限制用量（plan_type / used_percent）+ Stop 按钮。
  *
  * 用量信息常驻显示（即使为 0），并基于当前模型的 context_window 计算占比进度条。
- * codex 速率限制来自 token_count 事件的 rate_limits 字段（仅回放会话有）。
+ * codex 速率限制来自实时 token_count 事件，作为跨会话的账号级状态显示；回放仅影响会话上下文。
  */
 
 import { useActiveSession } from "@/stores/active-session";

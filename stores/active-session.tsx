@@ -10,7 +10,7 @@
  * - threadId / sessionMeta：会话标识（实时流用 threadId，回放用 sessionMeta）
  * - timeline：时间线条目（turn 边界 + item）
  * - usage：累计 token 用量
- * - rateLimits：codex 速率限制信息（来自 token_count.rate_limits）
+ * - rateLimits：账号级全局速率限制信息（仅接受实时 token_count.rate_limits，跨会话保留）
  * - error：错误信息
  * - resumeSessionId：续接的会话 ID（resume 模式）
  */
@@ -77,7 +77,7 @@ export interface ActiveSessionState {
   timeline: TimelineEntry[];
   /** 累计 usage（所有 turn 之和） */
   totalUsage: Usage;
-  /** codex 速率限制信息（来自 token_count.rate_limits） */
+  /** 账号级全局速率限制信息；历史回放不会覆盖当前实时值。 */
   rateLimits: RateLimits | null;
   /** 最近一次模型调用的输入 token，即当前上下文占用。 */
   contextTokens: number | null;
