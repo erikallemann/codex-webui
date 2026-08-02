@@ -93,6 +93,14 @@ test("image lightbox supports wheel zoom and pointer dragging", () => {
   assert.match(source, /cursor-grabbing/);
 });
 
+test("image lightbox does not shrink a zoomed image back to the viewport", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "components/events/UserMessageCard.tsx"),
+    "utf8",
+  );
+  assert.match(source, /max-w-none shrink-0 select-none/);
+});
+
 test("file wrapper becomes a compact request plus attachment metadata", () => {
   const {
     extractUserMessageAttachments,

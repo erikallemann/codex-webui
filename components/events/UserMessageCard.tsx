@@ -364,7 +364,7 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
               setNaturalSize(size);
               fitToViewport(size);
             }}
-            className={`max-w-none select-none rounded-lg bg-white object-contain shadow-2xl ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+            className={`max-w-none shrink-0 select-none rounded-lg bg-white object-contain shadow-2xl ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
             style={naturalSize ? {
               width: `${naturalSize.width * zoom / 100}px`,
               transform: `translate(${pan.x}px, ${pan.y}px)`,
