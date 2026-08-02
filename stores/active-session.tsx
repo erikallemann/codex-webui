@@ -97,6 +97,7 @@ export type Action =
   | { type: "ABORT" }
   | { type: "RESET" }
   | { type: "START_REPLAY" }
+  | { type: "FINISH_REPLAY" }
   | { type: "START_EXECUTION"; resumeSessionId: string | null }
   | { type: "ADD_PENDING_USER_MESSAGE"; item: UserMessageItem; timestamp?: string }
   | { type: "SET_RESUME"; sessionId: string | null };

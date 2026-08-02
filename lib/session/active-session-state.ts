@@ -58,6 +58,18 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
         resumeSessionId: state.resumeSessionId,
       };
 
+    case "FINISH_REPLAY":
+      return {
+        ...state,
+        status: state.status === "running" ? "completed" : state.status,
+        // 历史 rollout 偶尔缺少 turn.completed；回放已结束就不能继续显示为实时运行中。
+        timeline: state.timeline.map((entry) =>
+          entry.kind === "turn" && entry.status === "running"
+            ? { ...entry, status: "completed" }
+            : entry,
+        ),
+      };
+
     case "START_EXECUTION": {
       if (action.resumeSessionId) {
         return {

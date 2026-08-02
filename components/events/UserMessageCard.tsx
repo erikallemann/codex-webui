@@ -65,7 +65,7 @@ export function UserMessageCard({ item, timestamp }: Props) {
   }, [activeImage, images.length]);
 
   return (
-    <div className="timeline-item flex flex-row-reverse gap-3 px-2 py-2">
+    <div className="timeline-item flex flex-row-reverse gap-3 px-2 py-1.5">
       {/* 头像 */}
       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[hsl(var(--overlay)/0.1)] bg-[hsl(var(--overlay)/0.05)]">
         <User className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
@@ -73,7 +73,7 @@ export function UserMessageCard({ item, timestamp }: Props) {
       {/* 气泡内容：靠右对齐，最大宽度限制 80% */}
       <div className="flex w-full max-w-[80%] min-w-0 flex-col items-end">
         {/* 头部：you + 时间戳 */}
-        <div className="mb-1.5 flex items-center gap-2">
+        <div className="mb-1 flex items-center gap-2">
           {timestamp && (
             <span
               className="text-xs text-[hsl(var(--muted-foreground))]"
@@ -138,7 +138,7 @@ export function UserMessageCard({ item, timestamp }: Props) {
 
         {/* 灰色圆角矩形背景仅包裹正文 */}
         {hasText && (
-          <div className="w-full min-w-0 overflow-hidden rounded-xl bg-[hsl(var(--overlay)/0.06)] px-3.5 py-2.5 text-sm text-foreground/90">
+          <div className="w-full min-w-0 overflow-hidden rounded-xl bg-[hsl(var(--overlay)/0.06)] px-3.5 py-[6px] text-sm text-foreground/90">
             {browserComment ? (
               <div className="py-0.5">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground/80">
@@ -165,7 +165,7 @@ export function UserMessageCard({ item, timestamp }: Props) {
                 )}
               </div>
             ) : (
-              <Markdown>{item.text}</Markdown>
+              <Markdown className="prose-p:my-0 prose-p:leading-6">{item.text}</Markdown>
             )}
           </div>
         )}

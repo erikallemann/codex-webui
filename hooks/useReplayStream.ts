@@ -24,6 +24,7 @@ export function useReplayStream() {
     async (sessionId: string) => {
       const controller = new AbortController();
       claimActiveStream(controller);
+      let replayFinished = false;
 
       // 进入回放模式（RESET + START_REPLAY）
       dispatch({ type: "RESET" });
@@ -47,6 +48,7 @@ export function useReplayStream() {
         }
 
         await consumeSseStream(response, dispatchEvent, controller.signal);
+        replayFinished = true;
       } catch (err) {
         if (!controller.signal.aborted) {
           dispatchEvent({
@@ -58,6 +60,7 @@ export function useReplayStream() {
         setIsReplaying(false);
         // 旧流被新流替换时，不能把新流状态误置为 aborted。
         if (isActiveStream(controller)) {
+          if (replayFinished) dispatch({ type: "FINISH_REPLAY" });
           dispatch({ type: "ABORT" });
           releaseActiveStream(controller);
         }

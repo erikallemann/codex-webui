@@ -126,3 +126,15 @@ test("a live user item reconciles its matching pending message instead of duplic
     timestamp: "2026-08-02T00:00:00.000Z",
   });
 });
+
+test("a completed replay closes unmatched running turns", () => {
+  const { initialState, reducer } = loadStateMachine();
+  let state = reducer(initialState, { type: "START_REPLAY" });
+  state = event(reducer, state, { type: "turn.started", startedAt: 123 });
+
+  state = reducer(state, { type: "FINISH_REPLAY" });
+
+  assert.equal(state.status, "completed");
+  assert.equal(state.timeline[0].kind, "turn");
+  assert.equal(state.timeline[0].status, "completed");
+});

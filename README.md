@@ -39,12 +39,13 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | Area | What it does |
 |---|---|
 | **Streaming conversation** | Connects to `codex app-server` over JSON-RPC and maps notifications to SSE in real time — agent messages, reasoning, command execution, file changes, MCP tool calls, web search, plan updates, and turn boundaries. The conversation view enters its running state immediately and inserts the submitted prompt locally before app-server starts, so a slow startup neither replaces it with the welcome screen nor hides the new message. |
-| **Session replay** | Scans `~/.codex/sessions/` and `~/.codex/archived_sessions/` (including `.jsonl.zst` archives) and replays any past session through the same rendering pipeline as live streams. |
+| **Session replay** | Scans `~/.codex/sessions/` and `~/.codex/archived_sessions/` (including `.jsonl.zst` archives) and replays any past session through the same rendering pipeline as live streams. Unmatched historical turn-start records are finalized when replay ends, preventing stale running banners. |
 | **Resume** | Pick a historical session, type a new prompt — earlier turns remain visible while the next app-server turn starts and appends to the same timeline. Selecting a project or history item also synchronizes the working directory to that project. New live sessions are made resumable after their thread starts. |
 | **Isolated showcase** | Run the production interface at `/showcase` with fictional projects and conversations for safe screenshots, demos, visual QA, and onboarding. |
 | **Diff viewer** | `file_change` items open a full-screen unified-diff dialog with add/remove/context line coloring, double line numbers, syntax highlighting, and one-click patch copy. |
 | **Config panel** | Model, reasoning effort, collaboration mode (`Default` / `Plan`), sandbox, approval policy, and working directory — persisted per session in `localStorage`. |
 | **Composer** | A low-profile input surface keeps the prompt, session indicator, and keyboard hints together with a precise 6px vertical frame. |
+| **Message bubbles** | User prompts use compact 6px vertical padding and a tight single-paragraph rhythm without changing multiline Markdown layout. |
 | **Interactive questions** | In Plan mode, structured `request_user_input` questions render as option/text cards; submitting an answer resumes the same turn through `/api/exec/respond`. |
 | **User attachments** | Image inputs appear as compact thumbnails above the message bubble with full-screen preview; other files use a compact filename/path card. Codex-injected file and browser metadata is hidden from the visible message. |
 | **Slash commands** | 15 codex CLI commands (`/approvals`, `/architect`, `/clear`, `/compact`, `/diff`, `/goal`, `/help`, `/init`, `/mode`, `/model`, `/plan`, `/review`, `/sandbox`, `/skills`, `/status`) with an autocomplete menu triggered by `/`. |

@@ -158,6 +158,8 @@ logo/
 
 The Composer's outer surface intentionally uses `px-4 py-[6px]`: it keeps the input area low-profile while preserving separation from the timeline and the lower configuration panel. Adjust this container rather than the textarea or keyboard-hint margins when tuning the send area's vertical density.
 
+When a replay stream ends normally, `useReplayStream.ts` dispatches `FINISH_REPLAY`. It converts any unmatched historical running turn to completed, so incomplete rollout traces cannot leave a stale `RUNNING` divider in a finished conversation. Only this successful replay path finalizes turns; live execution remains controlled by its own stream events.
+
 ### Replay (`/api/sessions/:id/events`)
 
 1. `lib/rollout/paths.ts` resolves the rollout file under `~/.codex/sessions/YYYY/MM/DD/rollout-<ts>-<uuid>.jsonl` or `~/.codex/archived_sessions/` (`.jsonl.zst` for >7 days). `findRolloutFile` searches both roots, preferring plain `.jsonl`.
@@ -177,7 +179,7 @@ The Composer's outer surface intentionally uses `px-4 py-[6px]`: it keeps the in
 
 ### Frontend state machine (`lib/session/active-session-state.ts` + `stores/active-session.tsx`)
 
-A pure reducer, wired through a React Context provider, with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, and `resumeSessionId`. `START_EXECUTION` enters `running` before network/app-server startup; resumed executions preserve the existing timeline while new executions reset it. `ADD_PENDING_USER_MESSAGE` immediately appends the submitted prompt and reconciles a matching live user item if Codex later sends one. Both live and replay events route through the same `dispatchEvent`. The pure module is the regression-test seam for these transitions.
+A pure reducer, wired through a React Context provider, with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, and `resumeSessionId`. `START_EXECUTION` enters `running` before network/app-server startup; resumed executions preserve the existing timeline while new executions reset it. `ADD_PENDING_USER_MESSAGE` immediately appends the submitted prompt and reconciles a matching live user item if Codex later sends one. `FINISH_REPLAY` closes unmatched historical running turns after a successful replay. Both live and replay events route through the same `dispatchEvent`. The pure module is the regression-test seam for these transitions.
 
 ### Timeline rendering (`components/session/EventTimeline.tsx`)
 

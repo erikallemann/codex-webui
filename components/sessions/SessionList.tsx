@@ -17,7 +17,7 @@ import { useReplayStream } from "@/hooks/useReplayStream";
 import { useConfig } from "@/hooks/useConfig";
 import { useActiveSession } from "@/stores/active-session";
 import { SessionListItem } from "./SessionListItem";
-import { MessageSquare, RefreshCw, Search, Folder, Plus } from "lucide-react";
+import { MessageSquare, RefreshCw, Search, Folder, Plus, Loader2 } from "lucide-react";
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type { ThreadItem } from "@/types/api";
 import {
@@ -38,6 +38,8 @@ export function SessionList() {
   const { replay, isReplaying } = useReplayStream();
   const { state, dispatch } = useActiveSession();
   const activeSessionId = state.resumeSessionId || state.threadId;
+  // 同一浏览器只允许一个活跃流；回放加载和真实任务运行分开呈现。
+  const runningSessionId = state.status === "running" && !state.isReplay ? activeSessionId : null;
 
   // 在指定项目下新建对话：设置 cwd + 重置会话状态
   const newSessionForCwd = useCallback(
@@ -199,6 +201,7 @@ export function SessionList() {
                 items={items}
                 activeId={activeSessionId}
                 replayingId={isReplaying ? state.threadId : null}
+                runningSessionId={runningSessionId}
                 onPick={pickSession}
                 onNewSession={newSessionForCwd}
                 onSelectProject={selectProject}
@@ -213,6 +216,7 @@ export function SessionList() {
                 session={session}
                 active={(state.resumeSessionId || state.threadId) === session.id}
                 loading={isReplaying && state.threadId === session.id}
+                running={runningSessionId === session.id}
                 onClick={() => pickSession(session)}
                 indented={false}
               />
@@ -229,6 +233,7 @@ interface SessionGroupProps {
   items: ThreadItem[];
   activeId: string | null;
   replayingId: string | null;
+  runningSessionId: string | null;
   onPick: (session: ThreadItem) => void;
   onNewSession: (cwd: string) => void;
   onSelectProject: (cwd: string, items: ThreadItem[]) => void;
@@ -239,6 +244,7 @@ function SessionGroup({
   items,
   activeId,
   replayingId,
+  runningSessionId,
   onPick,
   onNewSession,
   onSelectProject,
@@ -247,6 +253,7 @@ function SessionGroup({
   // 默认折叠（用户要求：项目菜单默认不展开）
   const [collapsed, setCollapsed] = useState(true);
   const name = projectName(cwd);
+  const hasRunningSession = items.some((item) => item.id === runningSessionId);
 
   // 右键上下文菜单状态
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -305,6 +312,12 @@ function SessionGroup({
             <span className="shrink-0 text-xs text-[hsl(var(--muted-foreground))]/60">
               {items.length}
             </span>
+            {hasRunningSession && (
+              <Loader2
+                className="h-3 w-3 shrink-0 animate-spin text-[hsl(var(--primary))]"
+                aria-label="Running task"
+              />
+            )}
           </div>
           {/* 文件夹路径：标题下方显示完整 cwd，小字号淡色，超长截断 */}
           <div
@@ -346,6 +359,7 @@ function SessionGroup({
               session={s}
               active={activeId === s.id}
               loading={replayingId === s.id}
+              running={runningSessionId === s.id}
               onClick={() => onPick(s)}
             />
           ))}

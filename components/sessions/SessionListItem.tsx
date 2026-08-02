@@ -15,12 +15,13 @@ interface Props {
   session: ThreadItem;
   active: boolean;
   loading: boolean;
+  running?: boolean;
   onClick: () => void;
   /** 项目组内会话缩进；非项目对话顶层列表不缩进 */
   indented?: boolean;
 }
 
-export function SessionListItem({ session, active, loading, onClick, indented = true }: Props) {
+export function SessionListItem({ session, active, loading, running = false, onClick, indented = true }: Props) {
   return (
     <li>
       <button
@@ -46,7 +47,7 @@ export function SessionListItem({ session, active, loading, onClick, indented = 
           </div>
         </div>
 
-        {loading ? (
+        {loading || running ? (
           <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[hsl(var(--primary))]" />
         ) : (
           <ChevronRight
