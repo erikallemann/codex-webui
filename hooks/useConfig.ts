@@ -188,7 +188,10 @@ export function useConfig() {
   }, [store, sessionId, sessionMeta]);
 
   const updatePrefs = useCallback(
-    (patch: Partial<SessionPrefs>) => {
+    (patch: Partial<SessionPrefs>, targetSessionId?: string | null) => {
+      // 默认写入当前会话；项目切换/历史会话选择可显式指定目标，
+      // 避免 dispatch(RESET) 前后把 cwd 写入上一个会话。
+      const effectiveSessionId = targetSessionId === undefined ? sessionId : targetSessionId;
       void mutateStore(
         (prev) => {
           const baseStore: PrefsStore = prev ?? {
@@ -205,17 +208,17 @@ export function useConfig() {
             sessions: {},
           };
 
-          if (sessionId) {
+          if (effectiveSessionId) {
             // 更新会话独立偏好
             const currentSessionPrefs: SessionPrefs =
-              baseStore.sessions[sessionId] ??
-              (sessionMeta
+              baseStore.sessions[effectiveSessionId] ??
+              (sessionMeta?.session_id === effectiveSessionId
                 ? { ...baseStore.default, cwd: sessionMeta.cwd || baseStore.default.cwd }
                 : { ...baseStore.default });
             const updated: SessionPrefs = { ...currentSessionPrefs, ...patch };
             const nextStore: PrefsStore = {
               ...baseStore,
-              sessions: { ...baseStore.sessions, [sessionId]: updated },
+              sessions: { ...baseStore.sessions, [effectiveSessionId]: updated },
             };
             savePrefsStore(nextStore, prefsStorageKey);
             return nextStore;

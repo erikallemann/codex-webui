@@ -80,6 +80,7 @@ middleware.ts                   Local-only request boundary for every /api/* rou
 lib/
   session/
     active-session-state.ts     Pure live/replay reducer and execution-start transitions
+    project-selection.ts        Decide whether a project click keeps or resets the active session
   codex/
     binary.ts                   Resolve codex binary (CODEX_BIN → CODEX_JS → npm global → PATH)
     args.ts                     Build argv for new + resume sessions
@@ -166,6 +167,8 @@ logo/
 
 `lib/rollout/list.ts` walks both root directories (cap 10000 files), reads the first line for `session_meta`, extracts the first non-system-injected user message as a preview, joins `session_index.jsonl` for `thread_name`, filters out subagent-generated sessions (source contains `{"subagent":...}`), supports `cwd`/`q` filters, default limit 200.
 
+`components/sessions/SessionList.tsx` groups items by normalized cwd. Clicking a project header synchronizes that project's cwd; if the active session belongs to the project, its per-session preference is corrected in place, otherwise the old stream/session is cleared and the project cwd becomes the new-session default. Clicking a history item writes its `ThreadItem.cwd` to that session's preference before replay starts.
+
 ### Frontend state machine (`lib/session/active-session-state.ts` + `stores/active-session.tsx`)
 
 A pure reducer, wired through a React Context provider, with `status` (`idle` / `running` / `completed` / `failed` / `aborted`), `threadId`, `sessionMeta`, `timeline` (`TurnEntry` | `ItemEntry[]`), `totalUsage`, `rateLimits`, `error`, `isReplay`, and `resumeSessionId`. `START_EXECUTION` enters `running` before network/app-server startup; resumed executions preserve the existing timeline while new executions reset it. Both live and replay events route through the same `dispatchEvent`. The pure module is the regression-test seam for these transitions.
@@ -178,7 +181,7 @@ Rendered event types (see `EventCard.tsx` dispatcher): `agent_message`, `reasoni
 
 ## Configuration & preferences
 
-`hooks/useConfig.ts` fetches `/api/config` (model/sandbox/approval/effort enums) via SWR and persists per-session preferences, including collaboration mode, to `localStorage` under `codex-webui-prefs-v3` (a `default` object + a `sessions` map). Switching models auto-corrects unsupported `effort` values.
+`hooks/useConfig.ts` fetches `/api/config` (model/sandbox/approval/effort enums) via SWR and persists per-session preferences, including collaboration mode, to `localStorage` under `codex-webui-prefs-v3` (a `default` object + a `sessions` map). `updatePrefs` accepts an optional explicit session target so project/session selection can write cwd to the intended scope instead of whichever session is currently rendered. Switching models auto-corrects unsupported `effort` values.
 
 Theme and interface language both default to following the operating system when no stored preference exists. `ThemeProvider` uses `defaultTheme="system"` with `enableSystem`, while next-themes preserves explicit light/dark selections. Existing user preferences are never overwritten by the defaults.
 

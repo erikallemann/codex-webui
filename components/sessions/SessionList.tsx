@@ -6,7 +6,9 @@
  * SWR 拉取，点击加载回放。按 cwd（项目）分组展示，组标题显示项目名。
  *
  * 项目文件夹交互：
- * - 悬停时右侧显示「+」新建对话按钮：设置 prefs.cwd 为该项目路径并 RESET 会话
+ * - 点击项目：将 cwd 切换为该项目；若当前会话不属于该项目则开启新会话
+ * - 悬停时右侧显示「+」新建对话按钮：设置 cwd 并 RESET 会话
+ * - 点击历史会话：先把该会话的 cwd 写入其独立偏好，再开始回放
  * - 右键弹出上下文菜单：新建对话
  */
 
@@ -24,6 +26,8 @@ import {
   normalizeCwd,
 } from "@/lib/utils/format";
 import { useLanguage } from "@/components/i18n/LanguageProvider";
+import { abortActiveStream } from "@/hooks/stream-controller";
+import { resolveProjectSelection } from "@/lib/session/project-selection";
 
 export function SessionList() {
   const { t } = useLanguage();
@@ -33,15 +37,45 @@ export function SessionList() {
   const { sessions, isLoading, mutate } = useSessionList(undefined, q || undefined);
   const { replay, isReplaying } = useReplayStream();
   const { state, dispatch } = useActiveSession();
+  const activeSessionId = state.resumeSessionId || state.threadId;
 
   // 在指定项目下新建对话：设置 cwd + 重置会话状态
   const newSessionForCwd = useCallback(
     (cwd: string) => {
-      updatePrefs({ cwd });
+      abortActiveStream();
+      // 明确写入 default，不能依赖 RESET 后的 React 重渲染时序。
+      updatePrefs({ cwd }, null);
       dispatch({ type: "RESET" });
       dispatch({ type: "SET_RESUME", sessionId: null });
     },
     [updatePrefs, dispatch],
+  );
+
+  // 点击项目本身：如果当前会话属于该项目，只修正该会话的 cwd；
+  // 否则切换到项目默认 cwd 并清空旧会话，避免把旧项目会话续接到新项目。
+  const selectProject = useCallback(
+    (cwd: string, items: ThreadItem[]) => {
+      const selection = resolveProjectSelection(
+        activeSessionId,
+        items.map((item) => item.id),
+      );
+      if (selection.resetSession) {
+        abortActiveStream();
+        dispatch({ type: "RESET" });
+        dispatch({ type: "SET_RESUME", sessionId: null });
+      }
+      updatePrefs({ cwd }, selection.targetSessionId);
+    },
+    [activeSessionId, dispatch, updatePrefs],
+  );
+
+  // 点击历史会话时立即同步 cwd；回放事件稍后到达，不能让旧项目配置短暂保留。
+  const pickSession = useCallback(
+    (session: ThreadItem) => {
+      updatePrefs({ cwd: session.cwd }, session.id);
+      replay(session.id);
+    },
+    [replay, updatePrefs],
   );
 
   // 按 cwd 分组（保持组内按 updatedAt 降序，组间按组内最新会话时间降序）
@@ -163,10 +197,11 @@ export function SessionList() {
                 key={cwd}
                 cwd={cwd}
                 items={items}
-                activeId={state.resumeSessionId || state.threadId}
+                activeId={activeSessionId}
                 replayingId={isReplaying ? state.threadId : null}
-                onPick={replay}
+                onPick={pickSession}
                 onNewSession={newSessionForCwd}
+                onSelectProject={selectProject}
               />
             ))}
           </div>
@@ -178,7 +213,7 @@ export function SessionList() {
                 session={session}
                 active={(state.resumeSessionId || state.threadId) === session.id}
                 loading={isReplaying && state.threadId === session.id}
-                onClick={() => replay(session.id)}
+                onClick={() => pickSession(session)}
                 indented={false}
               />
             ))}
@@ -194,11 +229,20 @@ interface SessionGroupProps {
   items: ThreadItem[];
   activeId: string | null;
   replayingId: string | null;
-  onPick: (id: string) => void;
+  onPick: (session: ThreadItem) => void;
   onNewSession: (cwd: string) => void;
+  onSelectProject: (cwd: string, items: ThreadItem[]) => void;
 }
 
-function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession }: SessionGroupProps) {
+function SessionGroup({
+  cwd,
+  items,
+  activeId,
+  replayingId,
+  onPick,
+  onNewSession,
+  onSelectProject,
+}: SessionGroupProps) {
   const { t } = useLanguage();
   // 默认折叠（用户要求：项目菜单默认不展开）
   const [collapsed, setCollapsed] = useState(true);
@@ -243,7 +287,10 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession 
   return (
     <div className="mb-0.5" ref={groupRef}>
       <button
-        onClick={() => setCollapsed((v) => !v)}
+        onClick={() => {
+          onSelectProject(cwd, items);
+          setCollapsed((v) => !v);
+        }}
         onContextMenu={handleContextMenu}
         className="sticky top-0 z-10 group flex w-full items-start gap-1.5 bg-[hsl(var(--surface))] px-3 py-1.5 text-left hover:bg-[hsl(var(--overlay)/0.03)] transition-colors focus-ring border-b border-[hsl(var(--overlay)/0.05)]"
         title={cwd}
@@ -299,7 +346,7 @@ function SessionGroup({ cwd, items, activeId, replayingId, onPick, onNewSession 
               session={s}
               active={activeId === s.id}
               loading={replayingId === s.id}
-              onClick={() => onPick(s.id)}
+              onClick={() => onPick(s)}
             />
           ))}
         </ul>
