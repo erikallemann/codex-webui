@@ -44,7 +44,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | **Isolated showcase** | Run the production interface at `/showcase` with fictional projects and conversations for safe screenshots, demos, visual QA, and onboarding. |
 | **Diff viewer** | `file_change` items open a full-screen unified-diff dialog with add/remove/context line coloring, double line numbers, syntax highlighting, and one-click patch copy. |
 | **Config panel** | Model, reasoning effort, collaboration mode (`Default` / `Plan`), sandbox, approval policy, and working directory — persisted per session in `localStorage`. |
-| **Composer** | A compact input surface keeps the prompt, session indicator, and keyboard hints together without unnecessary vertical chrome. |
+| **Composer** | A low-profile input surface keeps the prompt, session indicator, and keyboard hints together with a precise 6px vertical frame. |
 | **Interactive questions** | In Plan mode, structured `request_user_input` questions render as option/text cards; submitting an answer resumes the same turn through `/api/exec/respond`. |
 | **User attachments** | Image inputs appear as compact thumbnails above the message bubble with full-screen preview; other files use a compact filename/path card. Codex-injected file and browser metadata is hidden from the visible message. |
 | **Slash commands** | 15 codex CLI commands (`/approvals`, `/architect`, `/clear`, `/compact`, `/diff`, `/goal`, `/help`, `/init`, `/mode`, `/model`, `/plan`, `/review`, `/sandbox`, `/skills`, `/status`) with an autocomplete menu triggered by `/`. |

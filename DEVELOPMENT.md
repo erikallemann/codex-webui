@@ -156,7 +156,7 @@ logo/
 6. `hooks/useExecStream.ts` marks the state as running and inserts a pending `user_message` before awaiting the app-server response. A resumed request keeps its replayed timeline; a new request starts from an empty timeline before that pending item is appended. If an app-server user item later arrives, the reducer reconciles it by text instead of duplicating it. The first non-ephemeral `thread.started` event becomes the next prompt's `resumeSessionId`.
 7. `lib/server/sse.ts` encodes mapped events as `data: <json>\n\n`; `hooks/useExecStream.ts` dispatches them to the shared reducer.
 
-The Composer's outer surface intentionally uses `px-4 py-2.5`: it keeps the input area visually compact while preserving separation from the timeline and the lower configuration panel. Adjust this container rather than the textarea or keyboard-hint margins when tuning the send area's vertical density.
+The Composer's outer surface intentionally uses `px-4 py-[6px]`: it keeps the input area low-profile while preserving separation from the timeline and the lower configuration panel. Adjust this container rather than the textarea or keyboard-hint margins when tuning the send area's vertical density.
 
 ### Replay (`/api/sessions/:id/events`)
 
