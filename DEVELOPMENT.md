@@ -17,6 +17,10 @@ Requirements:
 - **Codex CLI** installed and authenticated (`codex login` or `CODEX_API_KEY`)
 - OS: macOS / Linux / Windows. Windows paths are normalized by upper-casing the drive letter (`d:` → `D:`) to avoid duplicate project entries.
 
+## Release metadata
+
+Keep the release version synchronized in `package.json`, the root package entry in `package-lock.json`, and the Codex app-server `clientInfo` in `lib/codex/app-server.ts`. The README files expose the current release for users. Before publishing a tag, run `npm test` and `node node_modules/typescript/bin/tsc --noEmit`, then push the release commit and create the matching GitHub Release.
+
 Useful scripts:
 
 | Command | Purpose |

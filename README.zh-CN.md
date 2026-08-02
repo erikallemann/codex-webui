@@ -12,6 +12,8 @@
 
 上游项目：[openai/codex](https://github.com/openai/codex)
 
+当前版本：**v0.1.1**
+
 ---
 
 ## 界面预览

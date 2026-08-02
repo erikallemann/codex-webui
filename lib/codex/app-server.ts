@@ -43,7 +43,7 @@ export class AppServerConnection {
 
   async initialize(): Promise<void> {
     await this.request("initialize", {
-      clientInfo: { name: "codex-webui", title: "Codex Web UI", version: "0.1.0" },
+      clientInfo: { name: "codex-webui", title: "Codex Web UI", version: "0.1.1" },
       capabilities: { experimentalApi: true, requestAttestation: false },
     });
     this.notify("initialized");
