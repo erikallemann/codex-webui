@@ -101,6 +101,17 @@ test("image lightbox does not shrink a zoomed image back to the viewport", () =>
   assert.match(source, /max-w-none shrink-0 select-none/);
 });
 
+test("image lightbox only pans overflowing content and clamps it to the canvas edges", () => {
+  const source = fs.readFileSync(
+    path.resolve(__dirname, "..", "components/events/UserMessageCard.tsx"),
+    "utf8",
+  );
+  assert.match(source, /const canPan = maxPanX > 0 \|\| maxPanY > 0/);
+  assert.match(source, /if \(event\.button !== 0 \|\| !canPan\) return/);
+  assert.match(source, /Math\.max\(-maxPanX, Math\.min\(maxPanX, nextPan\.x\)\)/);
+  assert.match(source, /Math\.max\(-maxPanY, Math\.min\(maxPanY, nextPan\.y\)\)/);
+});
+
 test("file wrapper becomes a compact request plus attachment metadata", () => {
   const {
     extractUserMessageAttachments,

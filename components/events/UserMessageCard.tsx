@@ -197,8 +197,19 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
   const [zoom, setZoom] = useState(100);
   const [isFit, setIsFit] = useState(true);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const drag = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null);
+
+  const renderedWidth = naturalSize ? naturalSize.width * zoom / 100 : 0;
+  const renderedHeight = naturalSize ? naturalSize.height * zoom / 100 : 0;
+  const maxPanX = Math.max(0, (renderedWidth - canvasSize.width) / 2);
+  const maxPanY = Math.max(0, (renderedHeight - canvasSize.height) / 2);
+  const canPan = maxPanX > 0 || maxPanY > 0;
+  const clampPan = useCallback((nextPan: { x: number; y: number }) => ({
+    x: Math.max(-maxPanX, Math.min(maxPanX, nextPan.x)),
+    y: Math.max(-maxPanY, Math.min(maxPanY, nextPan.y)),
+  }), [maxPanX, maxPanY]);
 
   const fitToViewport = useCallback((size = naturalSize) => {
     if (!size) return;
@@ -225,11 +236,24 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
 
   useEffect(() => {
     const refit = () => {
+      setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
       if (isFit) fitToViewport();
     };
+    refit();
     window.addEventListener("resize", refit);
     return () => window.removeEventListener("resize", refit);
   }, [fitToViewport, isFit]);
+
+  useEffect(() => {
+    setPan((currentPan) => {
+      const nextPan = clampPan(currentPan);
+      return nextPan.x === currentPan.x && nextPan.y === currentPan.y ? currentPan : nextPan;
+    });
+    if (!canPan) {
+      drag.current = null;
+      setIsDragging(false);
+    }
+  }, [canPan, clampPan]);
 
   const setManualZoom = (nextZoom: number) => {
     setZoom(Math.min(400, Math.max(10, nextZoom)));
@@ -243,7 +267,7 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
   };
 
   const startDrag = (event: React.PointerEvent<HTMLImageElement>) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || !canPan) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = {
@@ -259,10 +283,10 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
   const moveDrag = (event: React.PointerEvent<HTMLImageElement>) => {
     const currentDrag = drag.current;
     if (!currentDrag || currentDrag.pointerId !== event.pointerId) return;
-    setPan({
+    setPan(clampPan({
       x: currentDrag.panX + event.clientX - currentDrag.startX,
       y: currentDrag.panY + event.clientY - currentDrag.startY,
-    });
+    }));
   };
 
   const endDrag = (event: React.PointerEvent<HTMLImageElement>) => {
@@ -341,7 +365,7 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
       </div>
 
       <div
-        className="absolute inset-0 overflow-hidden px-6 pb-10 pt-16"
+        className="absolute inset-0 overflow-hidden"
         onWheel={zoomWithWheel}
         aria-label="图片预览画布：滚轮缩放，左键拖动"
       >
@@ -364,7 +388,7 @@ function ImageLightbox({ images, activeIndex, onChange, onClose }: ImageLightbox
               setNaturalSize(size);
               fitToViewport(size);
             }}
-            className={`max-w-none shrink-0 select-none rounded-lg bg-white object-contain shadow-2xl ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+            className={`max-w-none shrink-0 select-none rounded-lg bg-white object-contain shadow-2xl ${isDragging ? "cursor-grabbing" : canPan ? "cursor-grab" : "cursor-default"}`}
             style={naturalSize ? {
               width: `${naturalSize.width * zoom / 100}px`,
               transform: `translate(${pan.x}px, ${pan.y}px)`,
