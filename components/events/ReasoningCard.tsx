@@ -25,6 +25,7 @@ import type { ReasoningItem } from "@/types/api";
 import { Brain, ChevronRight, Lock } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 interface Props {
   item: ReasoningItem;
@@ -34,6 +35,7 @@ interface Props {
 
 export function ReasoningCard({ item, timestamp }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useLanguage();
 
   // text 已由 replay.ts/events.ts 归一化：从 summary[{type:"summary_text",text:"..."}] 拼接而来
   const text = typeof item.text === "string" ? item.text.trim() : "";
@@ -58,7 +60,7 @@ export function ReasoningCard({ item, timestamp }: Props) {
         />
         <Brain className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--info)/0.7)]" />
         <span className="text-xs font-medium text-[hsl(var(--muted-foreground))] group-hover:text-foreground/70 transition-colors">
-          思考过程
+          {t("process.thinking")}
         </span>
         {/* 时间戳 */}
         {timestamp && (
@@ -82,7 +84,7 @@ export function ReasoningCard({ item, timestamp }: Props) {
         {/* 加密占位预览（折叠态，无明文时显示） */}
         {!previewText && !expanded && hasEncrypted && (
           <span className="truncate text-xs italic text-[hsl(var(--muted-foreground))]/50">
-            加密内容
+            {t("process.encryptedShort")}
           </span>
         )}
       </button>
@@ -95,7 +97,7 @@ export function ReasoningCard({ item, timestamp }: Props) {
             </Markdown>
           ) : (
             <p className="italic text-[hsl(var(--muted-foreground))]/60">
-              思考内容已加密，无法显示明文。
+              {t("process.encrypted")}
             </p>
           )}
         </div>

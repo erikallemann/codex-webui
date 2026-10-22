@@ -12,13 +12,14 @@
  * 只负责 flex 布局（时间线 flex-1 + Composer）。
  */
 
-import { useRef, useEffect, useCallback, useMemo, useState } from "react";
+import { useRef, useEffect, useLayoutEffect, useCallback, useMemo, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { FileChangeItem, ResponseItem } from "@/types/api";
 import { useActiveSession } from "@/stores/active-session";
 import { TurnStatusCard } from "@/components/events/TurnStatusCard";
 import { EventCard } from "@/components/events/EventCard";
 import { ResponseBlockCard, type TurnMeta } from "@/components/events/ResponseBlockCard";
+import { shouldFollowScroll } from "@/lib/session/scroll-follow";
 import {
   ConversationNav,
   type ConversationAnchor,
@@ -56,15 +57,13 @@ interface EventTimelineProps {
 export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
   const { state } = useActiveSession();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const atBottomRef = useRef(true);
-  // 用户滚动锁定：用户主动滚动后短暂禁用自动滚动，避免抢夺滚动控制权
-  const userScrollLockRef = useRef(false);
-  const userScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 会话切换强制滚动：切换对话时直接定位到最新位置（绕过 isAtBottom 检查）
+  const contentRef = useRef<HTMLDivElement>(null);
+  const followingRef = useRef(true);
+  const previousScrollTopRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
-  const forceScrollRef = useRef(false);
 
   const entries = useMemo(() => state.timeline, [state.timeline]);
+  const hasEntries = entries.length > 0;
 
   /**
    * turn 过程块展开状态：记录被用户展开的 completed turn id（Set）。
@@ -297,122 +296,57 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     measureElement: undefined,
   });
 
-  // 会话切换检测：threadId 变化时标记需要强制滚动到底部
-  useEffect(() => {
+  // A selected conversation starts at its latest item.
+  useLayoutEffect(() => {
     const sid = state.threadId;
     if (sid !== prevSessionIdRef.current) {
       prevSessionIdRef.current = sid;
       if (sid) {
-        forceScrollRef.current = true;
-        userScrollLockRef.current = false;
-        atBottomRef.current = true;
+        followingRef.current = true;
       }
     }
   }, [state.threadId]);
 
-  // 滚动到底部（用户在底部且未被锁定时）
-  const scrollToBottom = useCallback(() => {
-    if (userScrollLockRef.current) return;
+  const followBottom = useCallback(() => {
+    if (!followingRef.current) return;
     const el = scrollRef.current;
     if (!el) return;
-    // 直接检查实际滚动位置，避免与 onScroll 的异步更新产生竞态
-    const threshold = 100;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-    if (!isAtBottom) return;
     el.scrollTop = el.scrollHeight;
+    previousScrollTopRef.current = el.scrollTop;
   }, []);
 
-  // 事件数量变化 → 自动滚动（会话切换时强制滚动到底部）
-  useEffect(() => {
-    if (forceScrollRef.current && annotated.length > 0) {
-      // 会话刚切换：强制滚动到底部，绕过 isAtBottom 检查
-      const doScroll = () => {
-        const el = scrollRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
-      };
-      const raf = requestAnimationFrame(doScroll);
-      // 延迟二次滚动，等待虚拟列表测量完成
-      const timer = setTimeout(doScroll, 200);
-      return () => {
-        cancelAnimationFrame(raf);
-        clearTimeout(timer);
-      };
-    }
-    scrollToBottom();
-  }, [annotated.length, scrollToBottom]);
+  // Follow both new events and later virtualizer measurements or image/layout growth.
+  useLayoutEffect(() => {
+    followBottom();
+  }, [annotated, expandedTurns, state.status, followBottom]);
 
-  // 运行中流式追加 → 即使高度变化也跟随（会话切换时强制跟随）
   useEffect(() => {
-    if (forceScrollRef.current) {
-      const el = scrollRef.current;
-      if (!el) return;
-      const raf = requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
-      return () => cancelAnimationFrame(raf);
-    }
-    if (userScrollLockRef.current) return;
-    if (state.status !== "running") return;
-    const el = scrollRef.current;
-    if (!el) return;
-    // 直接检查实际位置，避免竞态
-    const threshold = 100;
-    const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-    if (!isAtBottom) return;
-    // rAF 避免在布局前滚动
-    const raf = requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
+    const content = contentRef.current;
+    if (!content) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(followBottom);
     });
-    return () => cancelAnimationFrame(raf);
-  }, [state.timeline, state.status]);
+    observer.observe(content);
+    if (scrollRef.current) observer.observe(scrollRef.current);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [hasEntries, followBottom]);
 
-  // 流式/回放结束后清除强制滚动标志（做最后一次滚动确保到底）
-  useEffect(() => {
-    if (forceScrollRef.current && state.status !== "running" && state.status !== "idle") {
-      const doScroll = () => {
-        const el = scrollRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
-        forceScrollRef.current = false;
-      };
-      const raf = requestAnimationFrame(doScroll);
-      const timer = setTimeout(doScroll, 300);
-      return () => {
-        cancelAnimationFrame(raf);
-        clearTimeout(timer);
-      };
-    }
-  }, [state.status]);
-
-  // 用户滚动处理：更新 atBottom 标志，并设置短暂锁定防止自动滚动抢夺控制权
+  // Content growth can fire scroll events too; only upward movement disables following.
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    // 阈值加大到 100px：用户小幅滚动不会被判定为「在底部」而被自动滚回
-    const threshold = 100;
-    const wasAtBottom = atBottomRef.current;
-    atBottomRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-
-    // 如果用户不在底部（主动上滚），设置短暂锁定
-    if (!atBottomRef.current) {
-      // 标记用户正在主动滚动，暂停自动滚动
-      userScrollLockRef.current = true;
-      // 清除之前的定时器
-      if (userScrollTimerRef.current) {
-        clearTimeout(userScrollTimerRef.current);
-      }
-      // 800ms 后解除锁定，恢复自动滚动（仅在仍在底部时生效）
-      userScrollTimerRef.current = setTimeout(() => {
-        userScrollLockRef.current = false;
-      }, 800);
-    } else if (!wasAtBottom) {
-      // 用户滚回底部，立即解除锁定
-      userScrollLockRef.current = false;
-      if (userScrollTimerRef.current) {
-        clearTimeout(userScrollTimerRef.current);
-        userScrollTimerRef.current = null;
-      }
-    }
+    followingRef.current = shouldFollowScroll(
+      followingRef.current,
+      previousScrollTopRef.current,
+      el.scrollTop,
+      el.scrollHeight - el.scrollTop - el.clientHeight,
+    );
+    previousScrollTopRef.current = el.scrollTop;
 
     // 更新翻页条 active anchor：找到当前可见区域顶部对应的最近 user_message
     if (userMessageAnchors.length > 0) {
@@ -438,12 +372,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
   /** 翻页条跳转：滚动到指定 user_message 位置 */
   const handleJump = useCallback(
     (index: number) => {
-      // 解除用户滚动锁定，允许滚动到位
-      userScrollLockRef.current = false;
-      if (userScrollTimerRef.current) {
-        clearTimeout(userScrollTimerRef.current);
-        userScrollTimerRef.current = null;
-      }
+      followingRef.current = false;
       virtualizer.scrollToIndex(index, { align: "start" });
       // 滚动后立即更新 active（scrollToIndex 会触发 onScroll，但同步更新避免延迟）
       const anchorPos = userMessageAnchors.findIndex((a) => a.index === index);
@@ -451,15 +380,6 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
     },
     [virtualizer, userMessageAnchors],
   );
-
-  // 组件卸载时清理定时器
-  useEffect(() => {
-    return () => {
-      if (userScrollTimerRef.current) {
-        clearTimeout(userScrollTimerRef.current);
-      }
-    };
-  }, []);
 
   if (annotated.length === 0) {
     return (
@@ -474,6 +394,9 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       <div
         ref={scrollRef}
         onScroll={onScroll}
+        onWheel={(event) => {
+          if (event.deltaY < 0) followingRef.current = false;
+        }}
         className="h-full overflow-y-auto"
         style={{
           // layout/paint 容器化提升渲染性能；不用 size 容器化以避免干扰 scrollHeight 计算
@@ -483,6 +406,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
         }}
       >
         <div
+          ref={contentRef}
           className="mx-auto max-w-4xl px-4 py-4"
           style={{
             height: `${virtualizer.getTotalSize()}px`,

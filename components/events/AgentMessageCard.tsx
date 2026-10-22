@@ -20,6 +20,7 @@ import { Copy, Check } from "lucide-react";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
 import { useToast } from "@/stores/toast";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 // codex 官方 logo：渐变色 SVG。
 // Next.js 15 静态导入 SVG 返回 StaticImageData 对象（{ src, width, height }），
 // 而非 URL 字符串，故取 .src 得到实际资源 URL；兼容字符串导入的旧版本。
@@ -37,16 +38,17 @@ interface Props {
 export function AgentMessageCard({ item, timestamp, showHeader = true }: Props) {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const copy = useCallback(() => {
     navigator.clipboard.writeText(item.text ?? "").then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
-      toast({ title: "已复制", description: "内容已复制到剪贴板", type: "success", duration: 2000 });
+      toast({ title: t("process.copied"), description: t("process.copySuccess"), type: "success", duration: 2000 });
     }).catch(() => {
-      toast({ title: "复制失败", description: "请手动选择文本复制", type: "error", duration: 3000 });
+      toast({ title: t("process.copyFailed"), description: t("process.copyManually"), type: "error", duration: 3000 });
     });
-  }, [item.text, toast]);
+  }, [item.text, toast, t]);
 
   // 续接消息（同一轮后续）：不显示头像/名字，缩进对齐正文（与有头像时的正文左边界对齐）
   // 但仍显示时间戳，方便定位每条子回复的时间
@@ -104,12 +106,13 @@ export function AgentMessageCard({ item, timestamp, showHeader = true }: Props) 
  * 定位在卡片右下角，不遮挡正文。
  */
 function CopyButton({ copied, onCopy }: { copied: boolean; onCopy: () => void }) {
+  const { t } = useLanguage();
   return (
     <button
       onClick={onCopy}
       className="absolute bottom-1 right-2 flex items-center gap-1 rounded-md p-1 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity hover:bg-[hsl(var(--overlay)/0.05)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 focus-ring"
-      title={copied ? "已复制" : "复制"}
-      aria-label={copied ? "已复制" : "复制"}
+      title={copied ? t("process.copied") : t("process.copy")}
+      aria-label={copied ? t("process.copied") : t("process.copy")}
     >
       {copied ? (
         <Check className="h-3 w-3 text-[hsl(var(--primary))]" />

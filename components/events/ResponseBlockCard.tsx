@@ -30,6 +30,7 @@ import { EventCard } from "./EventCard";
 import { Markdown } from "./Markdown";
 import { formatItemTime, formatDuration, formatTokens } from "@/lib/utils/format";
 import { useToast } from "@/stores/toast";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 // codex 官方 logo：渐变色 SVG。
 // Next.js 15 静态导入 SVG 返回 StaticImageData 对象，取 .src 得到实际资源 URL。
 import codexLogo from "@/logo/codex-color.svg";
@@ -76,6 +77,7 @@ export function ResponseBlockCard({
   const [internalExpanded, setInternalExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const copy = useCallback(() => {
     const text =
@@ -83,11 +85,11 @@ export function ResponseBlockCard({
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
-      toast({ title: "已复制", description: "内容已复制到剪贴板", type: "success", duration: 2000 });
+      toast({ title: t("process.copied"), description: t("process.copySuccess"), type: "success", duration: 2000 });
     }).catch(() => {
-      toast({ title: "复制失败", description: "请手动选择文本复制", type: "error", duration: 3000 });
+      toast({ title: t("process.copyFailed"), description: t("process.copyManually"), type: "error", duration: 3000 });
     });
-  }, [finalMessage, toast]);
+  }, [finalMessage, toast, t]);
 
   // 分离中间过程：中间 agent_message / reasoning / 动作
   const intermediateMessages = processItems.filter((i) => i.type === "agent_message");
@@ -118,7 +120,7 @@ export function ResponseBlockCard({
       ? (intermediateMessages[0].text ?? "").replace(/\s+/g, " ").trim().slice(0, 100)
       : "";
 
-  const actionSummary = summarizeActions(actionItems);
+  const actionSummary = summarizeActions(actionItems, t);
   const durationStr = formatDuration(turnMeta?.durationMs);
 
   // ---- 折叠头标签与展开状态 ----
@@ -134,14 +136,14 @@ export function ResponseBlockCard({
 
   // 折叠头标签
   const label = isCompletedTurn
-    ? "已处理"
+    ? t("process.completed")
     : isRunningTurn
-      ? "执行中"
+      ? t("process.running")
       : hasReasoning
-        ? "思考过程"
+        ? t("process.thinking")
         : hasActions
-          ? "执行动作"
-          : "中间输出";
+          ? t("process.actions")
+          : t("process.intermediate");
 
   // 图标：completed/兜底用 Brain/Wrench，running 用 Loader2
   const Icon = isRunningTurn
@@ -306,7 +308,7 @@ export function ResponseBlockCard({
                       </Markdown>
                     ) : (
                       <p className="italic text-[hsl(var(--muted-foreground))]/60">
-                        思考内容已加密，无法显示明文。
+                        {t("process.encrypted")}
                       </p>
                     )}
                   </div>
@@ -335,8 +337,8 @@ export function ResponseBlockCard({
         <button
           onClick={copy}
           className="absolute bottom-1 right-2 flex items-center gap-1 rounded-md p-1 text-[hsl(var(--muted-foreground))] opacity-0 transition-opacity hover:bg-[hsl(var(--overlay)/0.05)] hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 focus-ring"
-          title={copied ? "已复制" : "复制"}
-          aria-label={copied ? "已复制" : "复制"}
+          title={copied ? t("process.copied") : t("process.copy")}
+          aria-label={copied ? t("process.copied") : t("process.copy")}
         >
           {copied ? (
             <Check className="h-3 w-3 text-[hsl(var(--primary))]" />
@@ -350,17 +352,17 @@ export function ResponseBlockCard({
 }
 
 /** 生成动作计数摘要（如 "2 命令 · 1 文件"） */
-function summarizeActions(actions: ResponseItem[]): string {
+function summarizeActions(actions: ResponseItem[], t: ReturnType<typeof useLanguage>["t"]): string {
   if (actions.length === 0) return "";
   const counts: Record<string, number> = {};
   for (const a of actions) {
     counts[a.type] = (counts[a.type] || 0) + 1;
   }
   const parts: string[] = [];
-  if (counts.command_execution) parts.push(`${counts.command_execution} 命令`);
-  if (counts.file_change) parts.push(`${counts.file_change} 文件`);
-  if (counts.web_search) parts.push(`${counts.web_search} 搜索`);
-  if (counts.mcp_tool_call) parts.push(`${counts.mcp_tool_call} 工具`);
-  if (counts.plan_update) parts.push(`${counts.plan_update} 计划`);
+  if (counts.command_execution) parts.push(`${counts.command_execution} ${t("process.command")}`);
+  if (counts.file_change) parts.push(`${counts.file_change} ${t("process.file")}`);
+  if (counts.web_search) parts.push(`${counts.web_search} ${t("process.search")}`);
+  if (counts.mcp_tool_call) parts.push(`${counts.mcp_tool_call} ${t("process.tool")}`);
+  if (counts.plan_update) parts.push(`${counts.plan_update} ${t("process.plan")}`);
   return parts.join(" · ");
 }

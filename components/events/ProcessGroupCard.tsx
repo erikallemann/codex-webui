@@ -19,6 +19,7 @@ import { Brain, ChevronRight, Wrench } from "lucide-react";
 import { EventCard } from "./EventCard";
 import { Markdown } from "./Markdown";
 import { formatItemTime } from "@/lib/utils/format";
+import { useLanguage } from "@/components/i18n/LanguageProvider";
 
 interface Props {
   items: ResponseItem[];
@@ -29,6 +30,7 @@ interface Props {
 
 export function ProcessGroupCard({ items, onOpenDiff, timestamp }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useLanguage();
 
   // 分离 reasoning 与动作
   const reasoningItems = items.filter((i) => i.type === "reasoning");
@@ -47,7 +49,7 @@ export function ProcessGroupCard({ items, onOpenDiff, timestamp }: Props) {
   const previewText = reasoningText ? reasoningText.split("\n")[0].slice(0, 100) : "";
 
   // 动作计数摘要
-  const actionSummary = summarizeActions(actionItems);
+  const actionSummary = summarizeActions(actionItems, t);
 
   const hasReasoning = reasoningText.length > 0 || hasEncrypted;
   const hasActions = actionItems.length > 0;
@@ -56,7 +58,7 @@ export function ProcessGroupCard({ items, onOpenDiff, timestamp }: Props) {
   if (!hasReasoning && !hasActions) return null;
 
   // 有思考文本时标题为「思考过程」，仅有动作时为「执行动作」
-  const label = hasReasoning ? "思考过程" : "执行动作";
+  const label = hasReasoning ? t("process.thinking") : t("process.actions");
   const Icon = hasReasoning ? Brain : Wrench;
 
   return (
@@ -110,7 +112,7 @@ export function ProcessGroupCard({ items, onOpenDiff, timestamp }: Props) {
                 </Markdown>
               ) : (
                 <p className="italic text-[hsl(var(--muted-foreground))]/60">
-                  思考内容已加密，无法显示明文。
+                  {t("process.encrypted")}
                 </p>
               )}
             </div>
@@ -132,17 +134,17 @@ export function ProcessGroupCard({ items, onOpenDiff, timestamp }: Props) {
 }
 
 /** 生成动作计数摘要（如 "2 命令 · 1 文件"） */
-function summarizeActions(actions: ResponseItem[]): string {
+function summarizeActions(actions: ResponseItem[], t: ReturnType<typeof useLanguage>["t"]): string {
   if (actions.length === 0) return "";
   const counts: Record<string, number> = {};
   for (const a of actions) {
     counts[a.type] = (counts[a.type] || 0) + 1;
   }
   const parts: string[] = [];
-  if (counts.command_execution) parts.push(`${counts.command_execution} 命令`);
-  if (counts.file_change) parts.push(`${counts.file_change} 文件`);
-  if (counts.web_search) parts.push(`${counts.web_search} 搜索`);
-  if (counts.mcp_tool_call) parts.push(`${counts.mcp_tool_call} 工具`);
-  if (counts.plan_update) parts.push(`${counts.plan_update} 计划`);
+  if (counts.command_execution) parts.push(`${counts.command_execution} ${t("process.command")}`);
+  if (counts.file_change) parts.push(`${counts.file_change} ${t("process.file")}`);
+  if (counts.web_search) parts.push(`${counts.web_search} ${t("process.search")}`);
+  if (counts.mcp_tool_call) parts.push(`${counts.mcp_tool_call} ${t("process.tool")}`);
+  if (counts.plan_update) parts.push(`${counts.plan_update} ${t("process.plan")}`);
   return parts.join(" · ");
 }
