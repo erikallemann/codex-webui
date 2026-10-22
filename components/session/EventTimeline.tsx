@@ -61,6 +61,7 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
   const followingRef = useRef(true);
   const previousScrollTopRef = useRef(0);
   const prevSessionIdRef = useRef<string | null>(null);
+  const wasExecutingRef = useRef(false);
 
   const entries = useMemo(() => state.timeline, [state.timeline]);
   const hasEntries = entries.length > 0;
@@ -306,6 +307,13 @@ export function EventTimeline({ onOpenDiff }: EventTimelineProps) {
       }
     }
   }, [state.threadId]);
+
+  // A newly submitted prompt is always shown, even if the user was reading history.
+  useLayoutEffect(() => {
+    const executing = state.status === "running" && !state.isReplay;
+    if (executing && !wasExecutingRef.current) followingRef.current = true;
+    wasExecutingRef.current = executing;
+  }, [state.status, state.isReplay]);
 
   const followBottom = useCallback(() => {
     if (!followingRef.current) return;

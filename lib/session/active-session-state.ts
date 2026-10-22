@@ -33,6 +33,7 @@ export const initialState: ActiveSessionState = {
 };
 
 let turnCounter = 0;
+let errorCounter = 0;
 
 export function reducer(state: ActiveSessionState, action: Action): ActiveSessionState {
   switch (action.type) {
@@ -47,10 +48,12 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
 
     case "RESET":
       turnCounter = 0;
+      errorCounter = 0;
       return { ...initialState, rateLimits: state.rateLimits };
 
     case "START_REPLAY":
       turnCounter = 0;
+      errorCounter = 0;
       return {
         ...initialState,
         status: "running",
@@ -84,6 +87,7 @@ export function reducer(state: ActiveSessionState, action: Action): ActiveSessio
       }
 
       turnCounter = 0;
+      errorCounter = 0;
       return {
         ...initialState,
         status: "running",
@@ -225,7 +229,7 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
       const msg = event.error || event.message || "turn failed";
       return {
         ...state,
-        timeline,
+        timeline: [...timeline, errorEntry(msg)],
         error: msg,
         status: "failed",
       };
@@ -258,6 +262,7 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
       return {
         ...state,
         error: event.message,
+        timeline: [...state.timeline, errorEntry(event.stderr ? `${event.message}\n${event.stderr}` : event.message, event.severity)],
         // 非致命警告（如 skills context budget 截断）不将 session 状态置为 failed
         status: event.severity === "warning" ? state.status : "failed",
       };
@@ -265,6 +270,15 @@ function handleEvent(state: ActiveSessionState, event: SseEvent): ActiveSessionS
     default:
       return state;
   }
+}
+
+function errorEntry(message: string, severity?: "error" | "warning") {
+  const id = `error_${errorCounter++}`;
+  return {
+    kind: "item" as const,
+    id,
+    item: { id, type: "error" as const, message, severity },
+  };
 }
 
 function addUsage(a: Usage, b: Usage): Usage {

@@ -34,6 +34,8 @@ export class AppServerConnection {
     this.child.stderr.on("data", (chunk: Buffer) => {
       this.stderrBuffer += chunk.toString("utf8");
     });
+    this.child.on("error", (error) => this.finish(error));
+    this.child.stdin.on("error", (error) => this.finish(error));
     this.child.on("close", () => this.finish());
 
     const abort = () => this.kill();
@@ -123,10 +125,10 @@ export class AppServerConnection {
     }
   }
 
-  private finish(): void {
+  private finish(processError?: Error): void {
     if (this.done) return;
     this.done = true;
-    const error = new Error(this.stderrBuffer.trim() || "Codex app-server exited");
+    const error = processError ?? new Error(this.stderrBuffer.trim() || "Codex app-server exited");
     for (const pending of this.pending.values()) pending.reject(error);
     this.pending.clear();
     this.waiter?.({ value: undefined, done: true });

@@ -152,6 +152,29 @@ test("a completed replay closes unmatched running turns", () => {
   assert.equal(state.timeline[0].status, "completed");
 });
 
+test("execution failures appear as timeline cards beside the submitted prompt", () => {
+  const { initialState, reducer } = loadStateMachine();
+  let state = reducer(initialState, { type: "START_EXECUTION", resumeSessionId: null });
+  state = reducer(state, {
+    type: "ADD_PENDING_USER_MESSAGE",
+    item: { id: "prompt-1", type: "user_message", text: "hello" },
+  });
+  state = event(reducer, state, {
+    type: "error",
+    message: "app-server startup failed",
+    stderr: "spawn failed",
+  });
+
+  assert.equal(state.status, "failed");
+  assert.equal(state.timeline.length, 2);
+  assert.deepEqual(state.timeline[1].item, {
+    id: state.timeline[1].id,
+    type: "error",
+    message: "app-server startup failed\nspawn failed",
+    severity: undefined,
+  });
+});
+
 test("global rate limits survive session switches and ignore historical replay snapshots", () => {
   const { initialState, reducer } = loadStateMachine();
   const liveRateLimits = { primary: { used_percent: 42, window_duration_mins: 300 } };

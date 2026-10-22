@@ -63,6 +63,8 @@ The backend never stores sessions — it reads codex's own rollout files directl
 
 Because `exec` is a `POST`, the app cannot use `EventSource`. Instead the server streams `data: <json>\n\n` frames via a `ReadableStream`, and the client parses them manually with `fetch` + `ReadableStream` reader (`hooks/sse-client.ts`). The abort chain runs from the client `AbortController` → `request.signal` → kill the child process.
 
+`/api/exec` checks that `cwd` is an existing directory before spawning Codex. `AppServerConnection` handles child-process `error` events so a failed spawn rejects initialization instead of leaving the request hanging. If the app-server stream closes before `turn/completed`, the route emits an SSE error; the frontend displays it in the timeline.
+
 ## Directory layout
 
 ```
@@ -183,7 +185,7 @@ A pure reducer, wired through a React Context provider, with `status` (`idle` / 
 
 ### Timeline rendering (`components/session/EventTimeline.tsx`)
 
-`@tanstack/react-virtual` with dynamic measurement. The timeline is aggregated into `DisplayEntry` (`turn` / `item` / `response_block`). `INTERMEDIATE_TYPES` (`reasoning`, `command_execution`, `file_change`, `web_search`, `mcp_tool_call`, `plan_update`) are merged into a `response_block`. `estimateSize` per type; a persistent follow state starts enabled on session selection, pauses on upward scrolling or a conversation-nav jump, and resumes when the user returns within 100px of the bottom. The scroll container follows new entries and a `ResizeObserver` on the virtualized content tracks later height changes. `lib/session/scroll-follow.ts` keeps content growth from being mistaken for user scrolling.
+`@tanstack/react-virtual` with dynamic measurement. The timeline is aggregated into `DisplayEntry` (`turn` / `item` / `response_block`). `INTERMEDIATE_TYPES` (`reasoning`, `command_execution`, `file_change`, `web_search`, `mcp_tool_call`, `plan_update`) are merged into a `response_block`. `estimateSize` per type; a persistent follow state starts enabled on session selection and on each new execution, pauses on upward scrolling or a conversation-nav jump, and resumes when the user returns within 100px of the bottom. The scroll container follows new entries and a `ResizeObserver` on the virtualized content tracks later height changes. `lib/session/scroll-follow.ts` keeps content growth from being mistaken for user scrolling.
 
 Rendered event types (see `EventCard.tsx` dispatcher): `agent_message`, `reasoning`, `command_execution`, `file_change`, `mcp_tool_call`, `web_search`, `plan_update`, `user_message`, `user_input_request`, `error`.
 

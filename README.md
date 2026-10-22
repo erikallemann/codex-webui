@@ -38,7 +38,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 
 | Area | What it does |
 |---|---|
-| **Streaming conversation** | Connects to `codex app-server` over JSON-RPC and maps notifications to SSE in real time — agent messages, reasoning, command execution, file changes, MCP tool calls, web search, plan updates, and turn boundaries. The conversation view enters its running state immediately and inserts the submitted prompt locally before app-server starts, so a slow startup neither replaces it with the welcome screen nor hides the new message. The timeline follows new content while you are at the bottom and pauses when you scroll up; returning to the bottom resumes following. |
+| **Streaming conversation** | Connects to `codex app-server` over JSON-RPC and maps notifications to SSE in real time — agent messages, reasoning, command execution, file changes, MCP tool calls, web search, plan updates, and turn boundaries. The conversation view enters its running state immediately and inserts the submitted prompt locally before app-server starts, so a slow startup neither replaces it with the welcome screen nor hides the new message. Sending a prompt jumps to the latest content. The timeline then follows new content until you scroll up; returning to the bottom resumes following. Startup and premature-exit failures appear in the timeline. |
 | **Session replay** | Scans `~/.codex/sessions/` and `~/.codex/archived_sessions/` (including `.jsonl.zst` archives) and replays any past session through the same rendering pipeline as live streams. Unmatched historical turn-start records are finalized when replay ends, preventing stale running banners. |
 | **Resume** | Pick a historical session, type a new prompt — earlier turns remain visible while the next app-server turn starts and appends to the same timeline. Selecting a project or history item also synchronizes the working directory to that project. New live sessions are made resumable after their thread starts. |
 | **Isolated showcase** | Run the production interface at `/showcase` with fictional projects and conversations for safe screenshots, demos, visual QA, and onboarding. |
@@ -167,6 +167,8 @@ Model, reasoning effort, collaboration mode, sandbox, approval policy, and the w
 ## Troubleshooting
 
 **`codex executable not found`** — Set `CODEX_BIN` to the absolute path of the codex binary, or ensure `codex` is on `PATH` and `codex --version` works in the same shell you use to start the dev server.
+
+**A submitted prompt reports an unavailable working directory** — The selected project's path no longer exists from the Web UI server's environment. Select an existing directory in the config panel, then send the prompt again.
 
 **`Model metadata for 'gpt-5-codex' not found`** — This is a codex CLI warning (shown as an error card in the timeline), not a Web UI issue. Run `codex` in a terminal directly to confirm; switch models in the config panel if needed.
 

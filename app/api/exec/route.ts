@@ -1,6 +1,7 @@
 /** POST /api/exec — bridge Codex app-server JSON-RPC to the existing SSE UI. */
 
 import { randomUUID } from "node:crypto";
+import { stat } from "node:fs/promises";
 import { NextRequest } from "next/server";
 import type { ExecRequest, Usage } from "@/types/api";
 import { createSseResponse } from "@/lib/server/sse";
@@ -39,6 +40,13 @@ export async function POST(request: NextRequest): Promise<Response> {
   const validationError = validateExecRequest(body);
   if (validationError) return Response.json({ error: validationError }, { status: 400 });
   const req = body as ExecRequest;
+  try {
+    if (!(await stat(req.cwd)).isDirectory()) {
+      return Response.json({ error: `Working directory is not a directory: ${req.cwd}` }, { status: 400 });
+    }
+  } catch {
+    return Response.json({ error: `Working directory is unavailable: ${req.cwd}. Select an existing directory in the config panel.` }, { status: 400 });
+  }
 
   return createSseResponse(async (emit) => {
     let connection: AppServerConnection;
@@ -51,6 +59,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     let latestUsage = EMPTY_USAGE;
+    let turnFinished = false;
+    let turnStartFailed = false;
     try {
       const common = {
         cwd: req.cwd,
@@ -95,6 +105,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             }
           : undefined,
       }).catch((error) => {
+        turnStartFailed = true;
         emit({ type: "error", message: formatError(error, "turn start failed") });
         connection.kill();
       });
@@ -122,6 +133,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           registerInteraction(interactionId, { connection, requestId: message.id });
           emit(mapUserInputRequest(interactionId, params as unknown as AppServerUserInputParams));
         } else if (method === "turn/completed") {
+          turnFinished = true;
           const turn = (params.turn ?? {}) as Record<string, unknown>;
           if (turn.status === "failed") {
             const error = turn.error as { message?: string } | null;
@@ -140,6 +152,13 @@ export async function POST(request: NextRequest): Promise<Response> {
           const error = params.error as { message?: string } | undefined;
           emit({ type: "error", message: error?.message ?? String(params.message ?? "Codex error") });
         }
+      }
+      if (!request.signal.aborted && !turnFinished && !turnStartFailed) {
+        emit({
+          type: "error",
+          message: "Codex app-server exited before the turn completed.",
+          stderr: connection.stderr().trim().slice(-2000) || undefined,
+        });
       }
     } catch (error) {
       emit({
