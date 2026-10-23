@@ -304,7 +304,7 @@ function SessionGroup({
       >
         <Folder className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[hsl(var(--muted-foreground))]" />
         <div className="flex-1 min-w-0">
-          {/* 项目标题：微软雅黑（跟随 --font-sans），移除 font-mono/uppercase/tracking */}
+          {/* 项目标题跟随正文系统字体，移除 font-mono/uppercase/tracking */}
           <div className="flex items-center gap-1.5">
             <span className="truncate text-xs font-semibold text-[hsl(var(--muted-foreground))]">
               {name}

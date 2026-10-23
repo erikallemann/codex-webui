@@ -59,6 +59,7 @@ It runs entirely locally. No server to deploy, no auth, no remote access — the
 | **Abort** | Stop button (or closing the tab) aborts the fetch, kills the codex child process, and leaves the partial rollout on disk for resume. |
 | **Light / dark theme** | Follows the system by default, with a persistent manual light/dark/system toggle. |
 | **Interface language** | Follows the system by default, with Simplified Chinese and English overrides. The compact language menu applies immediately, persists in `localStorage`, and updates the document language. |
+| **Text rendering** | Uses the system font for Latin text and punctuation, with CJK fallbacks for Chinese text, so contractions such as “I’ve” keep natural spacing. |
 
 ## Prerequisites
 

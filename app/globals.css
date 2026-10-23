@@ -17,8 +17,8 @@
   :root {
     color-scheme: light;
 
-    /* 正文用系统默认字体（Windows 微软雅黑），代码/公式用等宽字体 */
-    --font-sans: "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* 拉丁文字先用系统字体，避免 CJK 字体让弯引号显得过宽；中文仍回退到 CJK 字体 */
+    --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "微软雅黑", "Hiragino Sans GB", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
     --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", "SF Mono", ui-monospace, monospace;
 
     /* 亮色基底 */
